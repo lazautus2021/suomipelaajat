@@ -557,6 +557,29 @@ a:hover { text-decoration: underline; }
 .admin-card-num { font-size: 32px; font-weight: 700; color: var(--blue); }
 .admin-card-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
 
+.fetch-fixtures-wrap { margin-top: 24px; }
+.fetch-fixtures-btn {
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.fetch-fixtures-btn:disabled { opacity: 0.6; cursor: default; }
+.fetch-fixtures-log {
+  margin-top: 12px;
+  background: #f4f4f4;
+  border-radius: 6px;
+  padding: 12px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.fetch-fixtures-error { margin-top: 8px; color: #c0392b; font-size: 13px; }
+
 .admin-flash {
   background: #f0fff4;
   border: 1px solid var(--green);

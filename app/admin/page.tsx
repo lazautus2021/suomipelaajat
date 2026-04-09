@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getDb } from '@/lib/db';
+import FetchFixturesButton from './FetchFixturesButton';
 
 export default async function AdminHome() {
   const sql = getDb();
@@ -24,6 +25,7 @@ export default async function AdminHome() {
           <div className="admin-card-label">Ottelua tietokannassa</div>
         </div>
       </div>
+      <FetchFixturesButton />
     </div>
   );
 }
