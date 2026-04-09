@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import MatchList from './components/MatchList';
+import { getAllBroadcasters } from '@/lib/broadcasters';
 
 const sql = neon(process.env.DATABASE_URL!);
 
@@ -26,7 +27,7 @@ async function getFixtures() {
 }
 
 export default async function Home() {
-  const fixtures = await getFixtures();
+  const [fixtures, broadcasterMap] = await Promise.all([getFixtures(), getAllBroadcasters()]);
 
   return (
     <main>
@@ -47,7 +48,7 @@ export default async function Home() {
         {fixtures.length === 0 ? (
           <p>Ei tulevia otteluita tietokannassa. Aja ensin: <code>npx tsx lib/fetch-fixtures.ts</code></p>
         ) : (
-          <MatchList fixtures={fixtures as any} />
+          <MatchList fixtures={fixtures as any} broadcasterMap={broadcasterMap} />
         )}
       </div>
     </main>

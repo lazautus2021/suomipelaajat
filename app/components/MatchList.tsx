@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import MatchCard from './MatchCard';
 import GoalNotification from './GoalNotification';
+import { type Broadcaster } from '@/lib/broadcasters';
 
 interface Fixture {
   id: number;
@@ -13,11 +14,12 @@ interface Fixture {
   homeicon: string;
   awayicon: string;
   competition: string;
-  players: string[] | null;
+  players: { name: string; team: string }[] | null;
 }
 
 interface Props {
   fixtures: Fixture[];
+  broadcasterMap: Record<string, Broadcaster[]>;
 }
 
 const COOKIE = 'selectedCompetitions';
@@ -38,7 +40,7 @@ function isToday(dateStr: string) {
   return d.toDateString() === now.toDateString();
 }
 
-export default function MatchList({ fixtures }: Props) {
+export default function MatchList({ fixtures, broadcasterMap }: Props) {
   const competitions = useMemo(
     () => [...new Set(fixtures.map((f) => f.competition))],
     [fixtures]
@@ -107,7 +109,7 @@ export default function MatchList({ fixtures }: Props) {
           <p className="empty">Ei otteluita valituilla kilpailuilla.</p>
         ) : (
           visible.map((f) => (
-            <MatchCard key={f.id} fixture={f} isToday={isToday(f.date)} />
+            <MatchCard key={f.id} fixture={f} isToday={isToday(f.date)} broadcasters={broadcasterMap[f.competition] ?? []} />
           ))
         )}
       </div>

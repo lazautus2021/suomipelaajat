@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import LiveScore from './LiveScore';
 import MatchModal from './MatchModal';
-import { getBroadcasters } from '@/lib/broadcasters';
+import { type Broadcaster } from '@/lib/broadcasters';
 
 interface Player {
   name: string;
@@ -25,6 +25,7 @@ interface Fixture {
 interface Props {
   fixture: Fixture;
   isToday: boolean;
+  broadcasters: Broadcaster[];
 }
 
 function PlayerList({ players }: { players: Player[] }) {
@@ -38,9 +39,8 @@ function PlayerList({ players }: { players: Player[] }) {
   );
 }
 
-export default function MatchCard({ fixture, isToday }: Props) {
+export default function MatchCard({ fixture, isToday, broadcasters }: Props) {
   const [showModal, setShowModal] = useState(false);
-  const broadcasters = getBroadcasters(fixture.competition);
 
   const kickoff = new Date(fixture.date);
   const timeStr = kickoff.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Helsinki' });
