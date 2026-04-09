@@ -98,7 +98,6 @@ export default function MatchCard({ fixture, isToday, broadcasters }: Props) {
           </button>
           {broadcasters.length > 0 && (
             <div className="broadcasters">
-              <span className="broadcast-label">📺</span>
               {broadcasters.map((b) =>
                 b.url ? (
                   <a key={b.name} href={b.url} target="_blank" rel="noopener noreferrer" className="broadcast-link">
