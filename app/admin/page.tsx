@@ -7,6 +7,7 @@ export default async function AdminHome() {
   const [{ count: playerCount }]      = await sql`SELECT COUNT(*) FROM players`;
   const [{ count: fixtureCount }]     = await sql`SELECT COUNT(*) FROM fixtures`;
   const [{ count: broadcasterCount }] = await sql`SELECT COUNT(*) FROM broadcasters`;
+  const [{ count: teamCount }]        = await sql`SELECT COUNT(*) FROM national_teams`;
 
   return (
     <div>
@@ -19,6 +20,10 @@ export default async function AdminHome() {
         <Link href="/admin/broadcasters" className="admin-card">
           <div className="admin-card-num">{broadcasterCount}</div>
           <div className="admin-card-label">Sarjaa / kanava</div>
+        </Link>
+        <Link href="/admin/national-teams" className="admin-card">
+          <div className="admin-card-num">{teamCount}</div>
+          <div className="admin-card-label">Maajoukkuetta</div>
         </Link>
         <div className="admin-card muted">
           <div className="admin-card-num">{fixtureCount}</div>

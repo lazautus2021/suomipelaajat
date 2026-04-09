@@ -5,7 +5,6 @@ const API_KEY  = process.env.APIFOOTBALL_KEY ?? '425b38292167d0a0f2a3fe691abe30a
 const BASE_URL = 'https://v3.football.api-sports.io';
 const SEASON   = 2025;
 
-// Vercel lähettää automaattisesti tämän headerin cron-ajoissa
 function isAuthed(request: NextRequest) {
   const auth = request.headers.get('authorization');
   return auth === `Bearer ${process.env.CRON_SECRET}`;
@@ -51,9 +50,9 @@ export async function GET(request: NextRequest) {
   const log: string[] = [];
 
   try {
+    // Pelaajien ottelut
     const players = await sql`SELECT id, name, team_id FROM players WHERE team_id IS NOT NULL`;
     log.push(`Pelaajia: ${players.length}`);
-
     for (const player of players) {
       const data     = await fetchAPI(`/fixtures?team=${player.team_id}&season=${SEASON}`);
       const fixtures = data.response ?? [];
@@ -68,16 +67,14 @@ export async function GET(request: NextRequest) {
       log.push(`${player.name}: ${fixtures.length} ottelua`);
     }
 
-    const teams = [
-      { id: 1099, label: 'Huuhkajat' },
-      { id: 1771, label: 'Helmarit' },
-      { id: 8193, label: 'Suomen U21' },
-    ];
-    for (const t of teams) {
-      const data     = await fetchAPI(`/fixtures?team=${t.id}&season=${SEASON}`);
+    // Maajoukkueet tietokannasta
+    const teams = await sql`SELECT id, name FROM national_teams WHERE active = true`;
+    log.push(`Maajoukkueita: ${teams.length}`);
+    for (const team of teams) {
+      const data     = await fetchAPI(`/fixtures?team=${team.id}&season=${SEASON}`);
       const fixtures = data.response ?? [];
       for (const fx of fixtures) await upsertFixture(sql, fx);
-      log.push(`${t.label}: ${fixtures.length} ottelua`);
+      log.push(`${team.name}: ${fixtures.length} ottelua`);
     }
 
     const [{ count }] = await sql`SELECT COUNT(*) FROM fixtures`;

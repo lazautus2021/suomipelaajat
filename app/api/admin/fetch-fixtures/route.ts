@@ -49,12 +49,10 @@ export async function POST(request: NextRequest) {
   try {
     // Pelaajien ottelut
     const players = await sql`SELECT id, name, team_id FROM players WHERE team_id IS NOT NULL`;
-    log.push(`Käydään läpi ${players.length} pelaajaa...`);
-
+    log.push(`Pelaajia: ${players.length}`);
     for (const player of players) {
       const data     = await fetchAPI(`/fixtures?team=${player.team_id}&season=${SEASON}`);
       const fixtures = data.response ?? [];
-
       for (const fx of fixtures) {
         const fixtureId = await upsertFixture(sql, fx);
         await sql`
@@ -66,17 +64,14 @@ export async function POST(request: NextRequest) {
       log.push(`  ${player.name}: ${fixtures.length} ottelua`);
     }
 
-    // Maajoukkueet
-    const teams = [
-      { id: 1099, label: 'Huuhkajat' },
-      { id: 1771, label: 'Helmarit' },
-      { id: 8193, label: 'Suomen U21' },
-    ];
-    for (const t of teams) {
-      const data     = await fetchAPI(`/fixtures?team=${t.id}&season=${SEASON}`);
+    // Maajoukkueet tietokannasta
+    const teams = await sql`SELECT id, name FROM national_teams WHERE active = true`;
+    log.push(`Maajoukkueita: ${teams.length}`);
+    for (const team of teams) {
+      const data     = await fetchAPI(`/fixtures?team=${team.id}&season=${SEASON}`);
       const fixtures = data.response ?? [];
       for (const fx of fixtures) await upsertFixture(sql, fx);
-      log.push(`  ${t.label}: ${fixtures.length} ottelua`);
+      log.push(`  ${team.name}: ${fixtures.length} ottelua`);
     }
 
     const [{ count }] = await sql`SELECT COUNT(*) FROM fixtures`;
