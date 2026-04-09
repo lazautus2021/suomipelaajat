@@ -1,7 +1,7 @@
 import { type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 
-export const maxDuration = 60;
+export const maxDuration = 10;
 
 const API_KEY  = process.env.APIFOOTBALL_KEY ?? '425b38292167d0a0f2a3fe691abe30a0';
 const BASE_URL = 'https://v3.football.api-sports.io';
@@ -14,14 +14,14 @@ function isAuthed(request: NextRequest) {
 async function fetchAPI(endpoint: string) {
   const res = await fetch(BASE_URL + endpoint, {
     headers: { 'x-apisports-key': API_KEY },
-    signal: AbortSignal.timeout(8000), // 8s timeout per request
+    signal: AbortSignal.timeout(7000),
   });
-  if (!res.ok) throw new Error(`API error ${res.status}: ${endpoint}`);
+  if (!res.ok) throw new Error(`API error ${res.status}`);
   return res.json();
 }
 
 async function upsertFixture(sql: ReturnType<typeof getDb>, fx: any) {
-  const id          = fx.fixture.id;
+  const id = fx.fixture.id;
   await sql`
     INSERT INTO fixtures (id, api_fixture_id, date, home, away, homeicon, awayicon, competition)
     VALUES (${id}, ${id}, ${fx.fixture.date}, ${fx.teams.home.name}, ${fx.teams.away.name},
@@ -37,105 +37,67 @@ async function upsertFixture(sql: ReturnType<typeof getDb>, fx: any) {
   return id;
 }
 
-// Hakee yhden pelaajan ottelut ja palauttaa tuloksen
-async function fetchPlayerFixtures(sql: ReturnType<typeof getDb>, player: { id: number; name: string; team_id: number }) {
-  try {
-    const data     = await fetchAPI(`/fixtures?team=${player.team_id}&season=${SEASON}`);
-    const fixtures = data.response ?? [];
-    for (const fx of fixtures) {
-      const fixtureId = await upsertFixture(sql, fx);
-      await sql`
-        INSERT INTO fixture_players (fixture_id, player_id)
-        VALUES (${fixtureId}, ${player.id})
-        ON CONFLICT DO NOTHING
-      `;
-    }
-    return `✓ ${player.name}: ${fixtures.length} ottelua`;
-  } catch (e: any) {
-    return `⚠ ${player.name}: virhe (${e.message})`;
+// GET: palauttaa listan kaikista haettavista kohteista (seurat + maajoukkueet)
+export async function GET(request: NextRequest) {
+  if (!isAuthed(request)) return Response.json({ error: 'Ei oikeuksia' }, { status: 401 });
+
+  const sql = getDb();
+  const players = await sql`SELECT id, name, team_id FROM players WHERE team_id IS NOT NULL`;
+  const teams   = await sql`SELECT id, name FROM national_teams WHERE active = true`;
+
+  // Deduplikoi seurajoukkueet
+  const teamMap = new Map<number, { teamId: number; playerIds: number[]; names: string[] }>();
+  for (const p of players) {
+    const tid = p.team_id as number;
+    if (!teamMap.has(tid)) teamMap.set(tid, { teamId: tid, playerIds: [], names: [] });
+    teamMap.get(tid)!.playerIds.push(p.id as number);
+    teamMap.get(tid)!.names.push(p.name as string);
   }
+
+  const jobs = [
+    ...[...teamMap.values()].map((t) => ({
+      type: 'club' as const,
+      teamId: t.teamId,
+      playerIds: t.playerIds,
+      label: t.names.join(', '),
+    })),
+    ...teams.map((t) => ({
+      type: 'national' as const,
+      teamId: t.id as number,
+      playerIds: [] as number[],
+      label: t.name as string,
+    })),
+  ];
+
+  return Response.json({ jobs });
 }
 
+// POST: hakee yhden erän (batch) kohteita
 export async function POST(request: NextRequest) {
   if (!isAuthed(request)) return Response.json({ error: 'Ei oikeuksia' }, { status: 401 });
 
-  const encoder = new TextEncoder();
+  const { jobs } = await request.json() as {
+    jobs: { type: 'club' | 'national'; teamId: number; playerIds: number[]; label: string }[]
+  };
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (msg: string) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ msg })}\n\n`));
-      };
+  const sql = getDb();
+  const results: string[] = [];
 
-      try {
-        const sql = getDb();
-
-        // Pelaajat — deduplikoi team_id:t, haetaan 5 rinnakkain
-        const players = await sql`SELECT id, name, team_id FROM players WHERE team_id IS NOT NULL`;
-
-        // Ryhmitä pelaajat team_id:n mukaan — sama seura haetaan vain kerran
-        const teamMap = new Map<number, { teamId: number; playerIds: number[]; names: string[] }>();
-        for (const p of players) {
-          const tid = p.team_id as number;
-          if (!teamMap.has(tid)) teamMap.set(tid, { teamId: tid, playerIds: [], names: [] });
-          teamMap.get(tid)!.playerIds.push(p.id as number);
-          teamMap.get(tid)!.names.push(p.name as string);
+  for (const job of jobs) {
+    try {
+      const data     = await fetchAPI(`/fixtures?team=${job.teamId}&season=${SEASON}`);
+      const fixtures = data.response ?? [];
+      for (const fx of fixtures) {
+        const fixtureId = await upsertFixture(sql, fx);
+        for (const pid of job.playerIds) {
+          await sql`INSERT INTO fixture_players (fixture_id, player_id) VALUES (${fixtureId}, ${pid}) ON CONFLICT DO NOTHING`;
         }
-        const uniqueTeams = [...teamMap.values()];
-        send(`👤 Pelaajia: ${players.length} (${uniqueTeams.length} eri seuraa, haetaan 5 kerrallaan...)`);
-
-        const CHUNK = 5;
-        for (let i = 0; i < uniqueTeams.length; i += CHUNK) {
-          const batch = uniqueTeams.slice(i, i + CHUNK);
-          const results = await Promise.all(batch.map(async ({ teamId, playerIds, names }) => {
-            try {
-              const data     = await fetchAPI(`/fixtures?team=${teamId}&season=${SEASON}`);
-              const fixtures = data.response ?? [];
-              for (const fx of fixtures) {
-                const fixtureId = await upsertFixture(sql, fx);
-                for (const playerId of playerIds) {
-                  await sql`INSERT INTO fixture_players (fixture_id, player_id) VALUES (${fixtureId}, ${playerId}) ON CONFLICT DO NOTHING`;
-                }
-              }
-              return `✓ ${names.join(', ')} (seura ${teamId}): ${fixtures.length} ottelua`;
-            } catch (e: any) {
-              return `⚠ Seura ${teamId} (${names.join(', ')}): ohitetaan (${e.message.slice(0, 50)})`;
-            }
-          }));
-          results.forEach(send);
-        }
-
-        // Maajoukkueet — haetaan rinnakkain
-        const teams = await sql`SELECT id, name FROM national_teams WHERE active = true`;
-        send(`🏳️ Maajoukkueita: ${teams.length}`);
-
-        const teamResults = await Promise.all(teams.map(async (team) => {
-          try {
-            const data     = await fetchAPI(`/fixtures?team=${team.id}&season=${SEASON}`);
-            const fixtures = data.response ?? [];
-            for (const fx of fixtures) await upsertFixture(sql, fx);
-            return `✓ ${team.name}: ${fixtures.length} ottelua`;
-          } catch (e: any) {
-            return `⚠ ${team.name}: virhe (${e.message})`;
-          }
-        }));
-        teamResults.forEach(send);
-
-        const [{ count }] = await sql`SELECT COUNT(*) FROM fixtures`;
-        send(`✅ Valmis! Tietokannassa yhteensä ${count} ottelua.`);
-      } catch (e: any) {
-        send(`❌ Virhe: ${e.message}`);
-      } finally {
-        controller.close();
       }
-    },
-  });
+      results.push(`✓ ${job.label}: ${fixtures.length} ottelua`);
+    } catch (e: any) {
+      results.push(`⚠ ${job.label}: ohitetaan`);
+    }
+  }
 
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-    },
-  });
+  return Response.json({ results });
 }
