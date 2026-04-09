@@ -1,7 +1,6 @@
-import { neon } from '@neondatabase/serverless';
 import { type NextRequest } from 'next/server';
+import { getDb } from '@/lib/db';
 
-const sql      = neon(process.env.DATABASE_URL!);
 const API_KEY  = process.env.APIFOOTBALL_KEY ?? '425b38292167d0a0f2a3fe691abe30a0';
 const BASE_URL = 'https://v3.football.api-sports.io';
 
@@ -19,6 +18,7 @@ async function fetchAPI(endpoint: string, ttl = 30_000) {
 }
 
 export async function GET(request: NextRequest) {
+  const sql = getDb();
   const fixtureId = request.nextUrl.searchParams.get('fixture_id');
   if (!fixtureId) return Response.json({ error: 'fixture_id puuttuu' }, { status: 400 });
 

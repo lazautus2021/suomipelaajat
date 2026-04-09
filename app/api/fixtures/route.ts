@@ -1,9 +1,8 @@
-import { neon } from '@neondatabase/serverless';
 import { type NextRequest } from 'next/server';
-
-const sql = neon(process.env.DATABASE_URL!);
+import { getDb } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
+  const sql = getDb();
   const days = parseInt(request.nextUrl.searchParams.get('days') ?? '60');
 
   const fixtures = await sql`
