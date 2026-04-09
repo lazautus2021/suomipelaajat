@@ -70,14 +70,38 @@ export async function POST(request: NextRequest) {
       try {
         const sql = getDb();
 
-        // Pelaajat — haetaan 5 rinnakkain
+        // Pelaajat — deduplikoi team_id:t, haetaan 5 rinnakkain
         const players = await sql`SELECT id, name, team_id FROM players WHERE team_id IS NOT NULL`;
-        send(`👤 Pelaajia: ${players.length} (haetaan 5 kerrallaan...)`);
+
+        // Ryhmitä pelaajat team_id:n mukaan — sama seura haetaan vain kerran
+        const teamMap = new Map<number, { teamId: number; playerIds: number[]; names: string[] }>();
+        for (const p of players) {
+          const tid = p.team_id as number;
+          if (!teamMap.has(tid)) teamMap.set(tid, { teamId: tid, playerIds: [], names: [] });
+          teamMap.get(tid)!.playerIds.push(p.id as number);
+          teamMap.get(tid)!.names.push(p.name as string);
+        }
+        const uniqueTeams = [...teamMap.values()];
+        send(`👤 Pelaajia: ${players.length} (${uniqueTeams.length} eri seuraa, haetaan 5 kerrallaan...)`);
 
         const CHUNK = 5;
-        for (let i = 0; i < players.length; i += CHUNK) {
-          const batch   = players.slice(i, i + CHUNK);
-          const results = await Promise.all(batch.map((p) => fetchPlayerFixtures(sql, p as any)));
+        for (let i = 0; i < uniqueTeams.length; i += CHUNK) {
+          const batch = uniqueTeams.slice(i, i + CHUNK);
+          const results = await Promise.all(batch.map(async ({ teamId, playerIds, names }) => {
+            try {
+              const data     = await fetchAPI(`/fixtures?team=${teamId}&season=${SEASON}`);
+              const fixtures = data.response ?? [];
+              for (const fx of fixtures) {
+                const fixtureId = await upsertFixture(sql, fx);
+                for (const playerId of playerIds) {
+                  await sql`INSERT INTO fixture_players (fixture_id, player_id) VALUES (${fixtureId}, ${playerId}) ON CONFLICT DO NOTHING`;
+                }
+              }
+              return `✓ ${names.join(', ')} (seura ${teamId}): ${fixtures.length} ottelua`;
+            } catch (e: any) {
+              return `⚠ Seura ${teamId} (${names.join(', ')}): ohitetaan (${e.message.slice(0, 50)})`;
+            }
+          }));
           results.forEach(send);
         }
 
