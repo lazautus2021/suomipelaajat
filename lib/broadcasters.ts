@@ -14,7 +14,7 @@ export async function getAllBroadcasters(): Promise<Record<string, Broadcaster[]
   if (cache) return cache;
   const rows = await sql`SELECT competition, channels FROM broadcasters`;
   cache = Object.fromEntries(rows.map((r) => [r.competition, r.channels as Broadcaster[]]));
-  return cache;
+  return cache!;
 }
 
 export function getBroadcasters(
