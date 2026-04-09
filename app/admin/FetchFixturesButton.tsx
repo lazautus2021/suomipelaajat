@@ -11,11 +11,32 @@ export default function FetchFixturesButton() {
     setLoading(true);
     setLog([]);
     setError(null);
+
     try {
-      const res  = await fetch('/api/admin/fetch-fixtures', { method: 'POST' });
-      const data = await res.json();
-      setLog(data.log ?? []);
-      if (!data.ok) setError(data.error ?? 'Tuntematon virhe');
+      const res = await fetch('/api/admin/fetch-fixtures', { method: 'POST' });
+      if (!res.ok || !res.body) {
+        setError('Pyyntö epäonnistui');
+        return;
+      }
+
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const text = decoder.decode(value, { stream: true });
+        const lines = text.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const { msg } = JSON.parse(line.slice(6));
+              setLog((prev) => [...prev, msg]);
+            } catch {}
+          }
+        }
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
