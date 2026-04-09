@@ -1,9 +1,8 @@
 import Link from 'next/link';
-import { neon } from '@neondatabase/serverless';
-
-const sql = neon(process.env.DATABASE_URL!);
+import { getDb } from '@/lib/db';
 
 export default async function AdminHome() {
+  const sql = getDb();
   const [{ count: playerCount }]      = await sql`SELECT COUNT(*) FROM players`;
   const [{ count: fixtureCount }]     = await sql`SELECT COUNT(*) FROM fixtures`;
   const [{ count: broadcasterCount }] = await sql`SELECT COUNT(*) FROM broadcasters`;

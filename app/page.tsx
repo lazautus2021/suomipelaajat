@@ -1,10 +1,9 @@
-import { neon } from '@neondatabase/serverless';
 import MatchList from './components/MatchList';
 import { getAllBroadcasters } from '@/lib/broadcasters';
-
-const sql = neon(process.env.DATABASE_URL!);
+import { getDb } from '@/lib/db';
 
 async function getFixtures() {
+  const sql = getDb();
   return sql`
     SELECT
       f.id,
