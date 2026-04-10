@@ -91,17 +91,24 @@ export async function POST(request: NextRequest) {
 
   for (const job of jobs) {
     try {
-      const { from, to, season } = getDateRange();
-      const [d1, d2] = await Promise.all([
-        fetchAPI(`/fixtures?team=${job.teamId}&season=${season}&from=${from}&to=${to}`),
-        fetchAPI(`/fixtures?team=${job.teamId}&season=${season - 1}&from=${from}&to=${to}`),
-      ]);
-      const seen = new Set<number>();
-      const fixtures = [...(d1.response ?? []), ...(d2.response ?? [])].filter((fx: any) => {
-        if (seen.has(fx.fixture.id)) return false;
-        seen.add(fx.fixture.id);
-        return true;
-      });
+      // Seurajoukkueet: date range + season. Maajoukkueet: next=20 (toimii ilman season)
+      let fixtures: any[];
+      if (job.type === 'national') {
+        const data = await fetchAPI(`/fixtures?team=${job.teamId}&next=20`);
+        fixtures = data.response ?? [];
+      } else {
+        const { from, to, season } = getDateRange();
+        const [d1, d2] = await Promise.all([
+          fetchAPI(`/fixtures?team=${job.teamId}&season=${season}&from=${from}&to=${to}`),
+          fetchAPI(`/fixtures?team=${job.teamId}&season=${season - 1}&from=${from}&to=${to}`),
+        ]);
+        const seen = new Set<number>();
+        fixtures = [...(d1.response ?? []), ...(d2.response ?? [])].filter((fx: any) => {
+          if (seen.has(fx.fixture.id)) return false;
+          seen.add(fx.fixture.id);
+          return true;
+        });
+      }
       for (const fx of fixtures) {
         const fixtureId = await upsertFixture(sql, fx);
         for (const pid of job.playerIds) {

@@ -81,17 +81,8 @@ async function importPlayerFixtures() {
 
 async function importTeamFixtures(teamId: number, label: string) {
   console.log(`Haetaan ${label}...`);
-  const { from, to, season } = getDateRange();
-  const [d1, d2] = await Promise.all([
-    fetchAPI(`/fixtures?team=${teamId}&season=${season}&from=${from}&to=${to}`),
-    fetchAPI(`/fixtures?team=${teamId}&season=${season - 1}&from=${from}&to=${to}`),
-  ]);
-  const seen = new Set<number>();
-  const fixtures = [...(d1.response ?? []), ...(d2.response ?? [])].filter((fx: any) => {
-    if (seen.has(fx.fixture.id)) return false;
-    seen.add(fx.fixture.id);
-    return true;
-  });
+  const data     = await fetchAPI(`/fixtures?team=${teamId}&next=20`);
+  const fixtures = data.response ?? [];
   for (const fx of fixtures) await upsertFixture(fx);
   console.log(`  ${fixtures.length} ottelua`);
 }

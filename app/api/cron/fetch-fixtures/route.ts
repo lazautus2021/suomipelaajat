@@ -86,17 +86,8 @@ export async function GET(request: NextRequest) {
     const teams = await sql`SELECT id, name FROM national_teams WHERE active = true`;
     log.push(`Maajoukkueita: ${teams.length}`);
     for (const team of teams) {
-      const { from, to, season } = getDateRange();
-      const [d1, d2] = await Promise.all([
-        fetchAPI(`/fixtures?team=${team.id}&season=${season}&from=${from}&to=${to}`),
-        fetchAPI(`/fixtures?team=${team.id}&season=${season - 1}&from=${from}&to=${to}`),
-      ]);
-      const seen = new Set<number>();
-      const fixtures = [...(d1.response ?? []), ...(d2.response ?? [])].filter((fx: any) => {
-        if (seen.has(fx.fixture.id)) return false;
-        seen.add(fx.fixture.id);
-        return true;
-      });
+      const data = await fetchAPI(`/fixtures?team=${team.id}&next=20`);
+      const fixtures = data.response ?? [];
       for (const fx of fixtures) await upsertFixture(sql, fx);
       log.push(`${team.name}: ${fixtures.length} ottelua`);
     }
