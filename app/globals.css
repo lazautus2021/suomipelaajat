@@ -182,6 +182,7 @@ a:hover { text-decoration: underline; }
   transition: box-shadow .15s;
 }
 .match-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.07); }
+.match-card--national { background: #f0f5ff; border-color: #b8d0f7; }
 
 .match-meta {
   display: flex;

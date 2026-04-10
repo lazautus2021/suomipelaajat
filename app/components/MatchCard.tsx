@@ -48,10 +48,11 @@ export default function MatchCard({ fixture, isToday, broadcasters }: Props) {
 
   const homePlayers = fixture.players?.filter((p) => p.team === fixture.home) ?? [];
   const awayPlayers = fixture.players?.filter((p) => p.team === fixture.away) ?? [];
+  const isNational  = !fixture.players || fixture.players.length === 0;
 
   return (
     <>
-      <div className="match-card" data-competition={fixture.competition}>
+      <div className={`match-card${isNational ? ' match-card--national' : ''}`} data-competition={fixture.competition}>
         {/* Yläpalkki */}
         <div className="match-meta">
           <span className="match-time">
