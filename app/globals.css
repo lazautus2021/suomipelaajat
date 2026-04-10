@@ -40,8 +40,12 @@ a:hover { text-decoration: underline; }
   align-items: center;
   gap: 16px;
 }
-.info-page-btn {
+.info-btn-wrapper {
+  position: relative;
   margin-left: auto;
+  flex-shrink: 0;
+}
+.info-page-btn {
   background: rgba(255,255,255,.15);
   color: #fff;
   border: 1px solid rgba(255,255,255,.3);
@@ -50,10 +54,22 @@ a:hover { text-decoration: underline; }
   font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
-  flex-shrink: 0;
 }
 .info-page-btn:hover { background: rgba(255,255,255,.25); }
-.info-modal-box { max-width: 560px; }
+.info-page-btn.active { background: rgba(255,255,255,.3); }
+.info-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  padding: 20px;
+  z-index: 200;
+  color: #111;
+}
 .info-modal-content { line-height: 1.7; font-size: 15px; }
 .info-modal-content h2 { font-size: 18px; font-weight: 700; margin: 0 0 12px; }
 .info-modal-content h3 { font-size: 15px; font-weight: 700; margin: 16px 0 8px; }

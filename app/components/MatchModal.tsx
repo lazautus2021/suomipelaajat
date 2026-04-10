@@ -72,30 +72,21 @@ export default function MatchModal({ fixtureId, home, away, onClose }: Props) {
     setError(null);
 
     fetch(`/api/gameinfo?fixture_id=${fixtureId}`)
-      .then((r) => {
-        console.log("API status:", r.status);
-
-        if (!r.ok) {
-          throw new Error(`API error ${r.status}`);
+      .then(async (r) => {
+        const text = await r.text();
+        try {
+          return JSON.parse(text);
+        } catch {
+          throw new Error('API ei vastannut oikein (mahdollisesti raja täynnä)');
         }
-
-        return r.json();
       })
       .then((d) => {
-        console.log("API data:", d);
-
-        // fallback jos data puuttuu
-        setData({
-          ...d,
-          lineups: d?.lineups || [],
-          finnishPlayers: d?.finnishPlayers || []
-        });
-
+        if (d?.error) throw new Error(d.error);
+        setData({ ...d, lineups: d?.lineups || [], finnishPlayers: d?.finnishPlayers || [] });
         setLoading(false);
       })
       .catch((err) => {
-        console.log("Fetch error:", err);
-        setError('Tietojen haku epäonnistui');
+        setError(err.message || 'Tietojen haku epäonnistui');
         setLoading(false);
       });
   }, [fixtureId]);
