@@ -41,10 +41,18 @@ function isToday(dateStr: string) {
 }
 
 export default function MatchList({ fixtures, broadcasterMap }: Props) {
-  const competitions = useMemo(
-    () => [...new Set(fixtures.map((f) => f.competition))],
-    [fixtures]
-  );
+  const { clubComps, nationalComps } = useMemo(() => {
+    const compHasPlayers = new Map<string, boolean>();
+    for (const f of fixtures) {
+      if (!compHasPlayers.has(f.competition)) compHasPlayers.set(f.competition, false);
+      if (f.players && f.players.length > 0) compHasPlayers.set(f.competition, true);
+    }
+    const club     = [...compHasPlayers.entries()].filter(([, v]) => v).map(([k]) => k);
+    const national = [...compHasPlayers.entries()].filter(([, v]) => !v).map(([k]) => k);
+    return { clubComps: club, nationalComps: national };
+  }, [fixtures]);
+
+  const competitions = useMemo(() => [...clubComps, ...nationalComps], [clubComps, nationalComps]);
 
   const [selected, setSelected] = useState<Set<string>>(() => new Set(competitions));
 
@@ -89,18 +97,32 @@ export default function MatchList({ fixtures, broadcasterMap }: Props) {
           <button onClick={clearAll}>Tyhjennä kaikki</button>
           <span className="filter-count">{selected.size}/{competitions.length} valittuna</span>
         </div>
-        <div className="filter-list">
-          {competitions.map((comp) => (
-            <label key={comp} className="filter-label">
-              <input
-                type="checkbox"
-                checked={selected.has(comp)}
-                onChange={() => toggle(comp)}
-              />
-              {comp}
-            </label>
-          ))}
-        </div>
+        {clubComps.length > 0 && (
+          <>
+            <p className="filter-group-label">Seurajoukkueet</p>
+            <div className="filter-list">
+              {clubComps.map((comp) => (
+                <label key={comp} className="filter-label">
+                  <input type="checkbox" checked={selected.has(comp)} onChange={() => toggle(comp)} />
+                  {comp}
+                </label>
+              ))}
+            </div>
+          </>
+        )}
+        {nationalComps.length > 0 && (
+          <>
+            <p className="filter-group-label">Maajoukkueet</p>
+            <div className="filter-list">
+              {nationalComps.map((comp) => (
+                <label key={comp} className="filter-label">
+                  <input type="checkbox" checked={selected.has(comp)} onChange={() => toggle(comp)} />
+                  {comp}
+                </label>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Ottelulista */}
