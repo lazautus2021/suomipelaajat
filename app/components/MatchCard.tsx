@@ -75,7 +75,7 @@ export default function MatchCard({ fixture, isToday, broadcasters }: Props) {
 
           <div className="match-center">
             {isToday && fixture.api_fixture_id ? (
-              <LiveScore fixtureId={fixture.api_fixture_id} />
+              <LiveScore fixtureId={fixture.api_fixture_id} matchDate={fixture.date} />
             ) : (
               <span className="vs">vs</span>
             )}

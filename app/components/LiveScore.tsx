@@ -13,30 +13,50 @@ interface LiveData {
 
 interface Props {
   fixtureId: number;
+  matchDate: string; // ISO date string
 }
 
-const FINAL = ['FT', 'AET', 'PEN', 'CANC', 'PST'];
+const FINAL   = ['FT', 'AET', 'PEN', 'CANC', 'PST', 'ABD'];
+const LIVE    = ['1H', '2H', 'ET', 'P', 'LIVE', 'HT', 'BT'];
+const POLL_LIVE    = 60_000;  // 1 min kun ottelu käynnissä
+const POLL_PENDING = 3 * 60_000; // 3 min kun ei vielä alkanut
 
-export default function LiveScore({ fixtureId }: Props) {
+export default function LiveScore({ fixtureId, matchDate }: Props) {
   const [data, setData] = useState<LiveData | null>(null);
 
   useEffect(() => {
-    let timer: ReturnType<typeof setInterval>;
+    let timer: ReturnType<typeof setTimeout>;
 
     const tick = async () => {
-      if (document.hidden) return;
+      if (document.hidden) {
+        // Sivu taustalla — tarkista uudestaan 3min päästä
+        timer = setTimeout(tick, POLL_PENDING);
+        return;
+      }
+
+      // Jos matsi on yli 2h tulevaisuudessa, ei kannata pollata vielä
+      const msToKickoff = new Date(matchDate).getTime() - Date.now();
+      if (msToKickoff > 2 * 60 * 60 * 1000) {
+        timer = setTimeout(tick, POLL_PENDING);
+        return;
+      }
+
       try {
         const res  = await fetch(`/api/live?fixture_id=${fixtureId}`);
         const json = await res.json() as LiveData;
         setData(json);
-        if (FINAL.includes(json.statusShort)) clearInterval(timer);
-      } catch {}
+
+        if (FINAL.includes(json.statusShort)) return; // Loppu — ei enää pollata
+        const interval = LIVE.includes(json.statusShort) ? POLL_LIVE : POLL_PENDING;
+        timer = setTimeout(tick, interval);
+      } catch {
+        timer = setTimeout(tick, POLL_PENDING);
+      }
     };
 
     tick();
-    timer = setInterval(tick, 20_000);
-    return () => clearInterval(timer);
-  }, [fixtureId]);
+    return () => clearTimeout(timer);
+  }, [fixtureId, matchDate]);
 
   if (!data) return null;
 

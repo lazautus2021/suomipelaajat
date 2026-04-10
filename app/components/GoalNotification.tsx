@@ -15,7 +15,7 @@ interface Props {
 }
 
 const STORAGE_KEY = 'sp_notified_goals';
-const POLL_MS     = 22_000;
+const POLL_MS     = 60_000; // 1 min — säästää API-kutsuja
 
 const TEST_GOALS: Goal[] = [
   { player: 'Teemu Pukki',    team: 'Norwich City',     minute: 33, detail: 'Normal Goal', eventKey: '' },
@@ -89,39 +89,41 @@ export default function GoalNotification({ fixtureIds }: Props) {
     bannerTimer.current = setTimeout(() => setBanner(null), 8000);
   };
 
-  // Pollaa maaleja kaikille tänään pelaaville
+  // Pollaa maaleja — käynnistyy kun matsi on enintään 30min päässä
   useEffect(() => {
     if (fixtureIds.length === 0) return;
-    const timers: ReturnType<typeof setInterval>[] = [];
+    const timers: ReturnType<typeof setTimeout>[] = [];
 
     fixtureIds.forEach((fid, i) => {
       const poll = async () => {
+        if (document.hidden) {
+          timers.push(setTimeout(poll, POLL_MS));
+          return;
+        }
         try {
           const res  = await fetch(`/api/goals?fixture_id=${fid}`);
           const data = await res.json();
-          if (!data.goals?.length) return;
-          const notified = getNotified();
-          let changed = false;
-          for (const goal of data.goals) {
-            if (!notified.has(goal.eventKey)) {
-              notified.add(goal.eventKey);
-              changed = true;
-              notify(goal);
+          if (data.goals?.length) {
+            const notified = getNotified();
+            let changed = false;
+            for (const goal of data.goals) {
+              if (!notified.has(goal.eventKey)) {
+                notified.add(goal.eventKey);
+                changed = true;
+                notify(goal);
+              }
             }
+            if (changed) saveNotified(notified);
           }
-          if (changed) saveNotified(notified);
         } catch {}
+        timers.push(setTimeout(poll, POLL_MS));
       };
 
-      const jitter = i * 3000;
-      const t = setTimeout(() => {
-        poll();
-        timers.push(setInterval(poll, POLL_MS));
-      }, jitter);
-      timers.push(t as any);
+      // Aloita pollaus pienellä jitterillä ettei kaikki kutsut mene yhtä aikaa
+      timers.push(setTimeout(poll, i * 5000));
     });
 
-    return () => timers.forEach(clearInterval);
+    return () => timers.forEach(clearTimeout);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fixtureIds.join(','), permission]);
 
