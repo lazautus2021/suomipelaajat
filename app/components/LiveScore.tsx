@@ -27,6 +27,8 @@ export default function LiveScore({ fixtureId, matchDate }: Props) {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
 
+    if (process.env.NEXT_PUBLIC_DISABLE_LIVE === '1') return;
+
     const tick = async () => {
       if (document.hidden) {
         // Sivu taustalla — tarkista uudestaan 3min päästä

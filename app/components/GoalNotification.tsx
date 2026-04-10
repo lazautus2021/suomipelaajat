@@ -92,6 +92,7 @@ export default function GoalNotification({ fixtureIds }: Props) {
   // Pollaa maaleja — käynnistyy kun matsi on enintään 30min päässä
   useEffect(() => {
     if (fixtureIds.length === 0) return;
+    if (process.env.NEXT_PUBLIC_DISABLE_LIVE === '1') return;
     const timers: ReturnType<typeof setTimeout>[] = [];
 
     fixtureIds.forEach((fid, i) => {
