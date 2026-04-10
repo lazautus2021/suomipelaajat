@@ -3,7 +3,11 @@ import { getDb } from '@/lib/db';
 
 const API_KEY  = process.env.APIFOOTBALL_KEY ?? '425b38292167d0a0f2a3fe691abe30a0';
 const BASE_URL = 'https://v3.football.api-sports.io';
-const SEASONSS  = [2025, 2026];
+function getDateRange() {
+  const from = new Date().toISOString().slice(0, 10);
+  const to   = new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10);
+  return { from, to };
+}
 
 function isAuthed(request: NextRequest) {
   const auth = request.headers.get('authorization');
@@ -54,11 +58,9 @@ export async function GET(request: NextRequest) {
     const players = await sql`SELECT id, name, team_id FROM players WHERE team_id IS NOT NULL`;
     log.push(`Pelaajia: ${players.length}`);
     for (const player of players) {
-      const fixtures: any[] = [];
-      for (const season of SEASONS) {
-        const data = await fetchAPI(`/fixtures?team=${player.team_id}&season=${season}`);
-        fixtures.push(...(data.response ?? []));
-      }
+      const { from, to } = getDateRange();
+      const data     = await fetchAPI(`/fixtures?team=${player.team_id}&from=${from}&to=${to}`);
+      const fixtures = data.response ?? [];
       for (const fx of fixtures) {
         const fixtureId = await upsertFixture(sql, fx);
         await sql`
@@ -75,10 +77,9 @@ export async function GET(request: NextRequest) {
     log.push(`Maajoukkueita: ${teams.length}`);
     for (const team of teams) {
       const fixtures: any[] = [];
-      for (const season of SEASONS) {
-        const data = await fetchAPI(`/fixtures?team=${team.id}&season=${season}`);
-        fixtures.push(...(data.response ?? []));
-      }
+      const { from, to } = getDateRange();
+      const data     = await fetchAPI(`/fixtures?team=${team.id}&from=${from}&to=${to}`);
+      const fixtures = data.response ?? [];
       for (const fx of fixtures) await upsertFixture(sql, fx);
       log.push(`${team.name}: ${fixtures.length} ottelua`);
     }
