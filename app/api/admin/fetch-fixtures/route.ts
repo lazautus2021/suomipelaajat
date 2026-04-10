@@ -5,11 +5,12 @@ export const maxDuration = 10;
 
 const API_KEY  = process.env.APIFOOTBALL_KEY ?? '425b38292167d0a0f2a3fe691abe30a0';
 const BASE_URL = 'https://v3.football.api-sports.io';
-// Haetaan vain tulevat 90 päivää — ei tarvita historiaa
 function getDateRange() {
-  const from = new Date().toISOString().slice(0, 10);
-  const to   = new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10);
-  return { from, to };
+  const now    = new Date();
+  const from   = now.toISOString().slice(0, 10);
+  const to     = new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10);
+  const season = now.getFullYear(); // API vaatii season + from/to
+  return { from, to, season };
 }
 
 function isAuthed(request: NextRequest) {
@@ -90,8 +91,8 @@ export async function POST(request: NextRequest) {
 
   for (const job of jobs) {
     try {
-      const { from, to } = getDateRange();
-      const data = await fetchAPI(`/fixtures?team=${job.teamId}&from=${from}&to=${to}`);
+      const { from, to, season } = getDateRange();
+      const data = await fetchAPI(`/fixtures?team=${job.teamId}&season=${season}&from=${from}&to=${to}`);
       const fixtures = data.response ?? [];
       for (const fx of fixtures) {
         const fixtureId = await upsertFixture(sql, fx);

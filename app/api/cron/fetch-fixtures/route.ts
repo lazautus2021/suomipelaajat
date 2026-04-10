@@ -4,9 +4,11 @@ import { getDb } from '@/lib/db';
 const API_KEY  = process.env.APIFOOTBALL_KEY ?? '425b38292167d0a0f2a3fe691abe30a0';
 const BASE_URL = 'https://v3.football.api-sports.io';
 function getDateRange() {
-  const from = new Date().toISOString().slice(0, 10);
-  const to   = new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10);
-  return { from, to };
+  const now    = new Date();
+  const from   = now.toISOString().slice(0, 10);
+  const to     = new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10);
+  const season = now.getFullYear();
+  return { from, to, season };
 }
 
 function isAuthed(request: NextRequest) {
@@ -58,8 +60,8 @@ export async function GET(request: NextRequest) {
     const players = await sql`SELECT id, name, team_id FROM players WHERE team_id IS NOT NULL`;
     log.push(`Pelaajia: ${players.length}`);
     for (const player of players) {
-      const { from, to } = getDateRange();
-      const data     = await fetchAPI(`/fixtures?team=${player.team_id}&from=${from}&to=${to}`);
+      const { from, to, season } = getDateRange();
+      const data     = await fetchAPI(`/fixtures?team=${player.team_id}&season=${season}&from=${from}&to=${to}`);
       const fixtures = data.response ?? [];
       for (const fx of fixtures) {
         const fixtureId = await upsertFixture(sql, fx);
@@ -76,9 +78,8 @@ export async function GET(request: NextRequest) {
     const teams = await sql`SELECT id, name FROM national_teams WHERE active = true`;
     log.push(`Maajoukkueita: ${teams.length}`);
     for (const team of teams) {
-      const fixtures: any[] = [];
-      const { from, to } = getDateRange();
-      const data     = await fetchAPI(`/fixtures?team=${team.id}&from=${from}&to=${to}`);
+      const { from, to, season } = getDateRange();
+      const data     = await fetchAPI(`/fixtures?team=${team.id}&season=${season}&from=${from}&to=${to}`);
       const fixtures = data.response ?? [];
       for (const fx of fixtures) await upsertFixture(sql, fx);
       log.push(`${team.name}: ${fixtures.length} ottelua`);

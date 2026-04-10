@@ -9,9 +9,11 @@ const sql = neon(process.env.DATABASE_URL!);
 const API_KEY  = '425b38292167d0a0f2a3fe691abe30a0';
 const BASE_URL = 'https://v3.football.api-sports.io';
 function getDateRange() {
-  const from = new Date().toISOString().slice(0, 10);
-  const to   = new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10);
-  return { from, to };
+  const now    = new Date();
+  const from   = now.toISOString().slice(0, 10);
+  const to     = new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10);
+  const season = now.getFullYear();
+  return { from, to, season };
 }
 
 async function fetchAPI(endpoint: string) {
@@ -53,8 +55,8 @@ async function importPlayerFixtures() {
     if (!player.team_id) continue;
     process.stdout.write(`  Pelaaja ${player.id} (seura ${player.team_id})... `);
 
-    const { from, to } = getDateRange();
-    const data     = await fetchAPI(`/fixtures?team=${player.team_id}&from=${from}&to=${to}`);
+    const { from, to, season } = getDateRange();
+    const data     = await fetchAPI(`/fixtures?team=${player.team_id}&season=${season}&from=${from}&to=${to}`);
     const fixtures = data.response ?? [];
 
     for (const fx of fixtures) {
@@ -71,8 +73,8 @@ async function importPlayerFixtures() {
 
 async function importTeamFixtures(teamId: number, label: string) {
   console.log(`Haetaan ${label}...`);
-  const { from, to } = getDateRange();
-  const data     = await fetchAPI(`/fixtures?team=${teamId}&from=${from}&to=${to}`);
+  const { from, to, season } = getDateRange();
+  const data     = await fetchAPI(`/fixtures?team=${teamId}&season=${season}&from=${from}&to=${to}`);
   const fixtures = data.response ?? [];
   for (const fx of fixtures) await upsertFixture(fx);
   console.log(`  ${fixtures.length} ottelua`);
