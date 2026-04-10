@@ -15,7 +15,7 @@ interface Props {
 }
 
 const STORAGE_KEY = 'sp_notified_goals';
-const POLL_MS     = 60_000; // 1 min — säästää API-kutsuja
+const POLL_MS     = 120_000; // 2 min — säästää API-kutsuja
 
 const TEST_GOALS: Goal[] = [
   { player: 'Teemu Pukki',    team: 'Norwich City',     minute: 33, detail: 'Normal Goal', eventKey: '' },
