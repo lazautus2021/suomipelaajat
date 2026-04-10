@@ -1,4 +1,5 @@
 import MatchList from './components/MatchList';
+import InfoModal from './components/InfoModal';
 import { getAllBroadcasters } from '@/lib/broadcasters';
 import { getDb } from '@/lib/db';
 
@@ -39,6 +40,7 @@ export default async function Home() {
               Automaattinen listaus suomalaisten futareiden matseista maailmalta.
             </p>
           </div>
+          <InfoModal />
         </div>
       </header>
 

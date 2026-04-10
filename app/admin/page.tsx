@@ -30,6 +30,9 @@ export default async function AdminHome() {
           <div className="admin-card-label">Ottelua tietokannassa</div>
         </div>
       </div>
+      <Link href="/admin/site-content" className="admin-card" style={{ marginTop: 8 }}>
+        <div className="admin-card-label" style={{ fontSize: 15, fontWeight: 600 }}>✏️ Muokkaa "Tietoa palvelusta"</div>
+      </Link>
       <FetchFixturesButton />
     </div>
   );

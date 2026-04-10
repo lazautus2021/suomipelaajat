@@ -40,6 +40,26 @@ a:hover { text-decoration: underline; }
   align-items: center;
   gap: 16px;
 }
+.info-page-btn {
+  margin-left: auto;
+  background: rgba(255,255,255,.15);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.info-page-btn:hover { background: rgba(255,255,255,.25); }
+.info-modal-box { max-width: 560px; }
+.info-modal-content { line-height: 1.7; font-size: 15px; }
+.info-modal-content h2 { font-size: 18px; font-weight: 700; margin: 0 0 12px; }
+.info-modal-content h3 { font-size: 15px; font-weight: 700; margin: 16px 0 8px; }
+.info-modal-content p { margin: 0 0 10px; }
+.info-modal-content ul, .info-modal-content ol { margin: 0 0 10px; padding-left: 20px; }
+.info-modal-content a { color: var(--blue); }
 .header-logo { border-radius: 8px; flex-shrink: 0; }
 .site-header h1 { font-size: 22px; font-weight: 700; color: #fff; }
 .header-sub { font-size: 13px; color: rgba(255,255,255,.75); margin-top: 4px; }
@@ -590,6 +610,42 @@ a:hover { text-decoration: underline; }
 }
 .fetch-fixtures-error { margin-top: 8px; color: #c0392b; font-size: 13px; }
 
+.wysiwyg-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px;
+  background: #f4f4f4;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+}
+.wysiwyg-toolbar button {
+  padding: 4px 10px;
+  border: 1px solid #ddd;
+  background: #fff;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.wysiwyg-toolbar button:hover { background: #e8e8e8; }
+.wysiwyg-sep { width: 1px; background: #ddd; margin: 0 4px; align-self: stretch; }
+.wysiwyg-editor {
+  min-height: 280px;
+  border: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  padding: 16px;
+  font-size: 15px;
+  line-height: 1.7;
+  outline: none;
+  background: #fff;
+}
+.wysiwyg-editor:focus { border-color: var(--blue); }
+.wysiwyg-editor h2 { font-size: 18px; font-weight: 700; margin: 0 0 8px; }
+.wysiwyg-editor h3 { font-size: 15px; font-weight: 700; margin: 12px 0 6px; }
+.wysiwyg-editor p { margin: 0 0 8px; }
+.wysiwyg-editor ul, .wysiwyg-editor ol { padding-left: 20px; margin: 0 0 8px; }
+.wysiwyg-editor a { color: var(--blue); }
 .admin-flash {
   background: #f0fff4;
   border: 1px solid var(--green);
