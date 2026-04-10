@@ -16,6 +16,22 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Suomalaiset pelaajat maailmalla",
   description: "Listaus suomalaisten futareiden matseista maailmalla!",
+  icons: {
+    icon: "https://www.suomipelaajat.fi/suomipelaajat.png",
+    apple: "https://www.suomipelaajat.fi/suomipelaajat.png",
+  },
+  openGraph: {
+    title: "Suomalaiset pelaajat maailmalla",
+    description: "Listaus suomalaisten futareiden matseista maailmalla!",
+    images: [{ url: "https://www.suomipelaajat.fi/suomipelaajat.png" }],
+    siteName: "Suomipelaajat",
+  },
+  twitter: {
+    card: "summary",
+    title: "Suomalaiset pelaajat maailmalla",
+    description: "Listaus suomalaisten futareiden matseista maailmalla!",
+    images: ["https://www.suomipelaajat.fi/suomipelaajat.png"],
+  },
 };
 
 export default function RootLayout({
