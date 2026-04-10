@@ -31,6 +31,7 @@ a:hover { text-decoration: underline; }
   background: var(--blue);
   color: #fff;
   padding: 20px 0;
+  overflow: visible;
 }
 .header-inner {
   max-width: 860px;
@@ -44,6 +45,7 @@ a:hover { text-decoration: underline; }
   position: relative;
   margin-left: auto;
   flex-shrink: 0;
+  overflow: visible;
 }
 .info-page-btn {
   background: rgba(255,255,255,.15);

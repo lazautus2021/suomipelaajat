@@ -19,7 +19,7 @@ async function getFixtures() {
     FROM fixtures f
     LEFT JOIN fixture_players fp ON f.id = fp.fixture_id
     LEFT JOIN players p ON fp.player_id = p.id
-    WHERE f.date >= NOW()
+    WHERE f.date >= NOW() - INTERVAL '1 day'
       AND f.date < NOW() + INTERVAL '60 days'
     GROUP BY f.id
     ORDER BY f.date ASC
@@ -45,7 +45,7 @@ export default async function Home() {
       </header>
 
       <div className="container">
-        <h2>Tulevat ottelut</h2>
+        <h2>Ottelut</h2>
         {fixtures.length === 0 ? (
           <p>Ei tulevia otteluita tietokannassa. Aja ensin: <code>npx tsx lib/fetch-fixtures.ts</code></p>
         ) : (
