@@ -8,7 +8,7 @@ const sql = neon(process.env.DATABASE_URL!);
 
 const API_KEY  = '425b38292167d0a0f2a3fe691abe30a0';
 const BASE_URL = 'https://v3.football.api-sports.io';
-const SEASON   = 2025;
+const SEASONS  = [2025, 2026];
 
 async function fetchAPI(endpoint: string) {
   const res = await fetch(BASE_URL + endpoint, {
@@ -49,8 +49,11 @@ async function importPlayerFixtures() {
     if (!player.team_id) continue;
     process.stdout.write(`  Pelaaja ${player.id} (seura ${player.team_id})... `);
 
-    const data = await fetchAPI(`/fixtures?team=${player.team_id}&season=${SEASON}`);
-    const fixtures = data.response ?? [];
+    const fixtures: any[] = [];
+    for (const season of SEASONS) {
+      const data = await fetchAPI(`/fixtures?team=${player.team_id}&season=${season}`);
+      fixtures.push(...(data.response ?? []));
+    }
 
     for (const fx of fixtures) {
       const fixtureId = await upsertFixture(fx);
@@ -66,8 +69,11 @@ async function importPlayerFixtures() {
 
 async function importTeamFixtures(teamId: number, label: string) {
   console.log(`Haetaan ${label}...`);
-  const data     = await fetchAPI(`/fixtures?team=${teamId}&season=${SEASON}`);
-  const fixtures = data.response ?? [];
+  const fixtures: any[] = [];
+  for (const season of SEASONS) {
+    const data = await fetchAPI(`/fixtures?team=${teamId}&season=${season}`);
+    fixtures.push(...(data.response ?? []));
+  }
   for (const fx of fixtures) await upsertFixture(fx);
   console.log(`  ${fixtures.length} ottelua`);
 }

@@ -5,7 +5,7 @@ export const maxDuration = 10;
 
 const API_KEY  = process.env.APIFOOTBALL_KEY ?? '425b38292167d0a0f2a3fe691abe30a0';
 const BASE_URL = 'https://v3.football.api-sports.io';
-const SEASON   = 2025;
+const SEASONS  = [2025, 2026];
 
 function isAuthed(request: NextRequest) {
   return request.cookies.get('admin_auth')?.value === process.env.ADMIN_PASSWORD;
@@ -85,8 +85,11 @@ export async function POST(request: NextRequest) {
 
   for (const job of jobs) {
     try {
-      const data     = await fetchAPI(`/fixtures?team=${job.teamId}&season=${SEASON}`);
-      const fixtures = data.response ?? [];
+      const fixtures: any[] = [];
+      for (const season of SEASONS) {
+        const data = await fetchAPI(`/fixtures?team=${job.teamId}&season=${season}`);
+        fixtures.push(...(data.response ?? []));
+      }
       for (const fx of fixtures) {
         const fixtureId = await upsertFixture(sql, fx);
         for (const pid of job.playerIds) {
