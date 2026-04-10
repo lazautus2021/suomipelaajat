@@ -32,6 +32,11 @@ export default function FetchFixturesButton() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ jobs: batch }),
         });
+        if (!r.ok) {
+          const text = await r.text();
+          addLog(`❌ Erä ${i / BATCH_SIZE + 1} epäonnistui (${r.status}): ${text.slice(0, 100)}`);
+          continue;
+        }
         const { results } = await r.json();
         results.forEach(addLog);
       }
