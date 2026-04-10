@@ -92,8 +92,16 @@ export async function POST(request: NextRequest) {
   for (const job of jobs) {
     try {
       const { from, to, season } = getDateRange();
-      const data = await fetchAPI(`/fixtures?team=${job.teamId}&season=${season}&from=${from}&to=${to}`);
-      const fixtures = data.response ?? [];
+      const [d1, d2] = await Promise.all([
+        fetchAPI(`/fixtures?team=${job.teamId}&season=${season}&from=${from}&to=${to}`),
+        fetchAPI(`/fixtures?team=${job.teamId}&season=${season - 1}&from=${from}&to=${to}`),
+      ]);
+      const seen = new Set<number>();
+      const fixtures = [...(d1.response ?? []), ...(d2.response ?? [])].filter((fx: any) => {
+        if (seen.has(fx.fixture.id)) return false;
+        seen.add(fx.fixture.id);
+        return true;
+      });
       for (const fx of fixtures) {
         const fixtureId = await upsertFixture(sql, fx);
         for (const pid of job.playerIds) {
