@@ -44,7 +44,7 @@ interface Props {
 
 const POS_ORDER: Record<string, number> = { G: 0, D: 1, M: 2, F: 3 };
 
-function sortByPos(players: Player[]) {
+function sortByPos(players: Player[] = []) {
   return [...players].sort((a, b) => (POS_ORDER[a.pos] ?? 9) - (POS_ORDER[b.pos] ?? 9));
 }
 
@@ -62,18 +62,45 @@ function PlayerRow({ player }: { player: Player }) {
 }
 
 export default function MatchModal({ fixtureId, home, away, onClose }: Props) {
-  const [data, setData]     = useState<GameInfo | null>(null);
+  const [data, setData] = useState<GameInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
+  // 🔥 FIXATTU FETCH
   useEffect(() => {
+    setLoading(true);
+    setError(null);
+
     fetch(`/api/gameinfo?fixture_id=${fixtureId}`)
-      .then((r) => r.json())
-      .then((d) => { setData(d); setLoading(false); })
-      .catch(() => { setError('Tietojen haku epäonnistui'); setLoading(false); });
+      .then((r) => {
+        console.log("API status:", r.status);
+
+        if (!r.ok) {
+          throw new Error(`API error ${r.status}`);
+        }
+
+        return r.json();
+      })
+      .then((d) => {
+        console.log("API data:", d);
+
+        // fallback jos data puuttuu
+        setData({
+          ...d,
+          lineups: d?.lineups || [],
+          finnishPlayers: d?.finnishPlayers || []
+        });
+
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.log("Fetch error:", err);
+        setError('Tietojen haku epäonnistui');
+        setLoading(false);
+      });
   }, [fixtureId]);
 
-  // Sulje Escape-näppäimellä
+  // Escape sulku
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handler);
@@ -81,62 +108,77 @@ export default function MatchModal({ fixtureId, home, away, onClose }: Props) {
   }, [onClose]);
 
   const fx = data?.fixture;
-  const hasScore = fx && fx.homeScore != null && fx.awayScore != null &&
-                   !['NS', 'TBD'].includes(fx.statusShort);
+
+  const hasScore =
+    fx &&
+    fx.homeScore != null &&
+    fx.awayScore != null &&
+    !['NS', 'TBD'].includes(fx.statusShort);
+
+  const lineups = data?.lineups || [];
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose} aria-label="Sulje">✕</button>
+        <button className="modal-close" onClick={onClose}>✕</button>
 
-        {/* Otsikko */}
+        {/* HEADER */}
         <div className="modal-header">
           <div className="modal-teams">
-            {fx?.homeLogo && <img src={fx.homeLogo} alt="" width={28} height={28} />}
+            {fx?.homeLogo && <img src={fx.homeLogo} width={28} height={28} />}
             <span>{fx?.home ?? home}</span>
-            {hasScore && (
-              <span className="modal-score">{fx!.homeScore} – {fx!.awayScore}</span>
+
+            {hasScore ? (
+              <span className="modal-score">
+                {fx!.homeScore} – {fx!.awayScore}
+              </span>
+            ) : (
+              <span className="modal-vs">vs</span>
             )}
-            {!hasScore && <span className="modal-vs">vs</span>}
+
             <span>{fx?.away ?? away}</span>
-            {fx?.awayLogo && <img src={fx.awayLogo} alt="" width={28} height={28} />}
+            {fx?.awayLogo && <img src={fx.awayLogo} width={28} height={28} />}
           </div>
+
           {fx && (
             <div className="modal-meta">
-              {fx.venue && <span>📍 {fx.venue}{fx.city ? `, ${fx.city}` : ''}</span>}
+              {fx.venue && (
+                <span>📍 {fx.venue}{fx.city ? `, ${fx.city}` : ''}</span>
+              )}
               {fx.referee && <span>🟨 {fx.referee}</span>}
             </div>
           )}
         </div>
 
+        {/* BODY */}
         <div className="modal-body">
-          {loading && <p className="modal-loading">Ladataan tietoja...</p>}
-          {error   && <p className="modal-error">{error}</p>}
+          {loading && <p>Ladataan...</p>}
+          {error && <p className="modal-error">{error}</p>}
 
-          {data && data.lineups.length === 0 && !loading && (
-            <p className="modal-empty">Kokoonpanoja ei vielä saatavilla.</p>
+          {!loading && lineups.length === 0 && (
+            <p>Ei kokoonpanoja saatavilla.</p>
           )}
 
-          {data && data.lineups.length > 0 && (
+          {lineups.length > 0 && (
             <div className="lineups">
-              {data.lineups.map((team) => (
+              {lineups.map((team) => (
                 <div key={team.team} className="lineup-team">
                   <div className="lineup-header">
-                    <img src={team.logo} alt="" width={22} height={22} />
+                    {team.logo && <img src={team.logo} width={22} height={22} />}
                     <strong>{team.team}</strong>
                     {team.formation && (
                       <span className="formation">{team.formation}</span>
                     )}
                   </div>
 
-                  <div className="lineup-section-label">Avauskokoonpano</div>
+                  <div>Avaus</div>
                   {sortByPos(team.startXI).map((p) => (
                     <PlayerRow key={p.name} player={p} />
                   ))}
 
-                  {team.substitutes.length > 0 && (
+                  {team.substitutes?.length > 0 && (
                     <>
-                      <div className="lineup-section-label subs">Vaihtopenkki</div>
+                      <div>Vaihtopenkki</div>
                       {team.substitutes.map((p) => (
                         <PlayerRow key={p.name} player={p} />
                       ))}
