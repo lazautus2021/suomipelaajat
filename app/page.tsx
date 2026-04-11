@@ -19,7 +19,7 @@ async function getFixtures() {
     FROM fixtures f
     LEFT JOIN fixture_players fp ON f.id = fp.fixture_id
     LEFT JOIN players p ON fp.player_id = p.id
-    WHERE f.date >= NOW() - INTERVAL '1 day'
+    WHERE f.date >= date_trunc('day', now() at time zone 'Europe/Helsinki') at time zone 'Europe/Helsinki'
       AND f.date < NOW() + INTERVAL '60 days'
     GROUP BY f.id
     ORDER BY f.date ASC
