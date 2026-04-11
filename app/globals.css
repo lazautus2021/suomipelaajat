@@ -682,6 +682,24 @@ a:hover { text-decoration: underline; }
   margin-bottom: 20px;
 }
 .admin-form-box h2 { font-size: 16px; margin-bottom: 16px; }
+
+/* Joukkuetarkistus */
+.check-result-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+.check-result-row:last-child { border-bottom: none; }
+.check-result-row.changed { background: #fff8e1; margin: 0 -20px; padding: 7px 20px; }
+.check-result-row.error   { background: #fff5f5; margin: 0 -20px; padding: 7px 20px; }
+.check-name  { font-weight: 600; min-width: 140px; }
+.check-old   { color: #888; text-decoration: line-through; }
+.check-arrow { color: #aaa; }
+.check-new   { color: #1a8a30; font-weight: 600; }
 .admin-form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

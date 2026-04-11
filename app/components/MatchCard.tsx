@@ -56,7 +56,7 @@ export default function MatchCard({ fixture, isToday, broadcasters }: Props) {
         {/* Yläpalkki */}
         <div className="match-meta">
           <span className="match-time">
-            {isToday ? <span className="today-badge">Tänään</span> : dateStr} {timeStr}
+            {isToday ? <><span className="today-badge">Tänään</span> {dateStr}</> : dateStr} {timeStr}
           </span>
           <span className="match-competition">{fixture.competition}</span>
         </div>

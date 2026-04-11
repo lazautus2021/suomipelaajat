@@ -42,6 +42,9 @@ interface Props {
   onClose: () => void;
 }
 
+const LIVE_STATUSES = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE']);
+const DONE_STATUSES = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
+
 const POS_ORDER: Record<string, number> = { G: 0, D: 1, M: 2, F: 3 };
 
 function sortByPos(players: Player[] = []) {
@@ -146,9 +149,12 @@ export default function MatchModal({ fixtureId, home, away, onClose }: Props) {
           {loading && <p>Ladataan...</p>}
           {error && <p className="modal-error">{error}</p>}
 
-          {!loading && lineups.length === 0 && (
-            <p>Ei kokoonpanoja saatavilla.</p>
-          )}
+          {!loading && lineups.length === 0 && (() => {
+            const status = data?.fixture?.statusShort ?? 'NS';
+            if (DONE_STATUSES.has(status)) return <p>Ottelu päättynyt. Kokoonpanot eivät enää saatavilla.</p>;
+            if (LIVE_STATUSES.has(status)) return <p>Kokoonpanoja ei saatu – kokeile hetken päästä uudelleen.</p>;
+            return <p>Kokoonpanot julkaistaan noin tunti ennen ottelun alkua.</p>;
+          })()}
 
           {lineups.length > 0 && (
             <div className="lineups">

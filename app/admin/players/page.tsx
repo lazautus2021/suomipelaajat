@@ -10,16 +10,32 @@ interface Player {
   team_id: number;
 }
 
+interface CheckResult {
+  id: number;
+  name: string;
+  currentTeam: string;
+  apiTeam: string | null;
+  changed: boolean;
+  error: string | null;
+}
+
 const EMPTY: Omit<Player, 'id'> & { id: string } = { id: '', name: '', nationality: 'Finland', team: '', team_id: 0 };
+const BATCH = 3;
 
 export default function PlayersAdmin() {
-  const [players, setPlayers]   = useState<Player[]>([]);
-  const [editing, setEditing]   = useState<Player | null>(null);
-  const [adding, setAdding]     = useState(false);
-  const [form, setForm]         = useState<typeof EMPTY>({ ...EMPTY });
-  const [search, setSearch]     = useState('');
-  const [saving, setSaving]     = useState(false);
-  const [msg, setMsg]           = useState('');
+  const [players, setPlayers]         = useState<Player[]>([]);
+  const [editing, setEditing]         = useState<Player | null>(null);
+  const [adding, setAdding]           = useState(false);
+  const [form, setForm]               = useState<typeof EMPTY>({ ...EMPTY });
+  const [search, setSearch]           = useState('');
+  const [saving, setSaving]           = useState(false);
+  const [msg, setMsg]                 = useState('');
+
+  // Joukkuetarkistus
+  const [checking, setChecking]       = useState(false);
+  const [checkProgress, setCheckProgress] = useState('');
+  const [checkResults, setCheckResults]   = useState<CheckResult[]>([]);
+  const [updating, setUpdating]       = useState<number | null>(null);
 
   const load = () =>
     fetch('/api/admin/players').then((r) => r.json()).then(setPlayers);
@@ -66,11 +82,76 @@ export default function PlayersAdmin() {
     setForm({ ...EMPTY });
   };
 
+  // Päivitä yksittäisen pelaajan joukkue
+  const applyUpdate = async (result: CheckResult) => {
+    if (!result.apiTeam) return;
+    setUpdating(result.id);
+    const player = players.find((p) => p.id === result.id);
+    if (!player) return;
+    await fetch('/api/admin/players', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...player, team: result.apiTeam }),
+    });
+    await load();
+    setCheckResults((prev) =>
+      prev.map((r) => r.id === result.id ? { ...r, currentTeam: result.apiTeam!, changed: false } : r)
+    );
+    setUpdating(null);
+    flash(`${result.name} päivitetty: ${result.apiTeam}`);
+  };
+
+  // Päivitä kaikki muuttuneet
+  const applyAll = async () => {
+    const changed = checkResults.filter((r) => r.changed && r.apiTeam);
+    for (const r of changed) await applyUpdate(r);
+    flash('Kaikki päivitetty!');
+  };
+
+  // Tarkista joukkueet API:sta erissä
+  const checkTeams = async () => {
+    setChecking(true);
+    setCheckResults([]);
+    setCheckProgress('Haetaan pelaajat...');
+
+    const allPlayers = await fetch('/api/admin/check-player-teams').then((r) => r.json()) as { id: number; name: string; team: string }[];
+    const allResults: CheckResult[] = [];
+
+    for (let i = 0; i < allPlayers.length; i += BATCH) {
+      const batch = allPlayers.slice(i, i + BATCH);
+      setCheckProgress(`Tarkistetaan ${i + 1}–${Math.min(i + BATCH, allPlayers.length)} / ${allPlayers.length}...`);
+      try {
+        const res = await fetch('/api/admin/check-player-teams', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ players: batch }),
+        });
+        const results: CheckResult[] = await res.json();
+        allResults.push(...results);
+        setCheckResults([...allResults]);
+        // Keskeytä jos quota täynnä
+        if (results.some((r) => r.error?.includes('quota'))) {
+          setCheckProgress('API quota täynnä, keskeytetään.');
+          break;
+        }
+      } catch {
+        setCheckProgress('Virhe haussa, keskeytetään.');
+        break;
+      }
+    }
+
+    const changed = allResults.filter((r) => r.changed).length;
+    setCheckProgress(`Valmis. ${changed} muutosta löytyi.`);
+    setChecking(false);
+  };
+
   const filtered = players.filter(
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.team.toLowerCase().includes(search.toLowerCase())
   );
+
+  const changedResults = checkResults.filter((r) => r.changed);
 
   return (
     <div>
@@ -119,6 +200,54 @@ export default function PlayersAdmin() {
           </div>
         </div>
       )}
+
+      {/* Joukkuetarkistus */}
+      <div className="admin-form-box" style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0 }}>Tarkista joukkueet API:sta</h2>
+          <button className="admin-btn primary" onClick={checkTeams} disabled={checking}>
+            {checking ? 'Tarkistetaan...' : '🔄 Tarkista'}
+          </button>
+          {changedResults.length > 0 && (
+            <button className="admin-btn" onClick={applyAll}>
+              Päivitä kaikki ({changedResults.length})
+            </button>
+          )}
+        </div>
+        {checkProgress && <p style={{ margin: '10px 0 0', fontSize: 13, color: '#666' }}>{checkProgress}</p>}
+
+        {checkResults.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            {/* Muuttuneet ensin */}
+            {changedResults.length === 0 && !checking && (
+              <p style={{ fontSize: 13, color: '#4caf50', margin: 0 }}>✅ Kaikki joukkueet ajan tasalla!</p>
+            )}
+            {changedResults.map((r) => (
+              <div key={r.id} className="check-result-row changed">
+                <span className="check-name">{r.name}</span>
+                <span className="check-old">{r.currentTeam}</span>
+                <span className="check-arrow">→</span>
+                <span className="check-new">{r.apiTeam}</span>
+                <button
+                  className="admin-btn primary"
+                  style={{ fontSize: 12, padding: '3px 10px' }}
+                  onClick={() => applyUpdate(r)}
+                  disabled={updating === r.id}
+                >
+                  {updating === r.id ? '...' : 'Päivitä'}
+                </button>
+              </div>
+            ))}
+            {/* Virheet */}
+            {checkResults.filter((r) => r.error).map((r) => (
+              <div key={r.id} className="check-result-row error">
+                <span className="check-name">{r.name}</span>
+                <span style={{ color: '#e53935', fontSize: 13 }}>{r.error}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Haku */}
       <input
