@@ -3,6 +3,7 @@ import InfoModal from './components/InfoModal';
 import { getAllBroadcasters } from '@/lib/broadcasters';
 import { getDb } from '@/lib/db';
 
+// Hakee ottelut tietokannasta
 async function getFixtures() {
   const sql = getDb();
   return sql`
