@@ -36,6 +36,26 @@ async function fetchAPI(endpoint: string, revalidate: number | false = 30) {
   }
 }
 
+// Maa → lippu-emoji
+function countryFlag(nationality: string): string {
+  const map: Record<string, string> = {
+    'Finland': '🇫🇮', 'Sweden': '🇸🇪', 'Norway': '🇳🇴', 'Denmark': '🇩🇰',
+    'Germany': '🇩🇪', 'France': '🇫🇷', 'Spain': '🇪🇸', 'Italy': '🇮🇹',
+    'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Netherlands': '🇳🇱', 'Portugal': '🇵🇹', 'Belgium': '🇧🇪',
+    'Brazil': '🇧🇷', 'Argentina': '🇦🇷', 'Croatia': '🇭🇷', 'Poland': '🇵🇱',
+    'Czech Republic': '🇨🇿', 'Austria': '🇦🇹', 'Switzerland': '🇨🇭',
+    'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Ireland': '🇮🇪', 'Serbia': '🇷🇸',
+    'Turkey': '🇹🇷', 'Greece': '🇬🇷', 'Hungary': '🇭🇺', 'Slovakia': '🇸🇰',
+    'Romania': '🇷🇴', 'Ukraine': '🇺🇦', 'Russia': '🇷🇺', 'USA': '🇺🇸',
+    'Canada': '🇨🇦', 'Mexico': '🇲🇽', 'Colombia': '🇨🇴', 'Uruguay': '🇺🇾',
+    'Japan': '🇯🇵', 'South Korea': '🇰🇷', 'Australia': '🇦🇺', 'Morocco': '🇲🇦',
+    'Nigeria': '🇳🇬', 'Senegal': '🇸🇳', 'Ghana': '🇬🇭', 'Ivory Coast': '🇨🇮',
+    'Iceland': '🇮🇸', 'Estonia': '🇪🇪', 'Latvia': '🇱🇻', 'Lithuania': '🇱🇹',
+    'Slovenia': '🇸🇮', 'Bulgaria': '🇧🇬', 'Albania': '🇦🇱', 'Kosovo': '🇽🇰',
+  };
+  return map[nationality] ?? '';
+}
+
 export async function GET(request: NextRequest) {
   const sql = getDb();
   const fixtureId = request.nextUrl.searchParams.get('fixture_id');
@@ -55,14 +75,15 @@ export async function GET(request: NextRequest) {
 
     const finnishNames = new Set(rows.map((r) => r.name.toLowerCase()));
 
-    // Haetaan ensin fixture-tiedot (30s cache)
+    // Haetaan fixture-tiedot (30s cache)
     const fxData = await fetchAPI(`/fixtures?id=${fixtureId}`, 30);
     const fx = fxData?.response?.[0];
 
     if (!fx) {
       return Response.json({
-        fixture: { venue: null, city: null, referee: null, statusShort: 'NS', homeScore: null, awayScore: null, home: '', away: '', homeLogo: '', awayLogo: '', league: '' },
+        fixture: { venue: null, city: null, referee: null, statusShort: 'NS', homeScore: null, awayScore: null, home: '', away: '', homeLogo: '', awayLogy: '', league: '' },
         lineups: [],
+        squads: [],
         finnishPlayers: rows.map((r) => r.name),
       }, { status: 200 });
     }
@@ -70,10 +91,10 @@ export async function GET(request: NextRequest) {
     const statusShort = fx.fixture.status.short;
     const isLive = LIVE_STATUSES.has(statusShort);
     const isDone = DONE_STATUSES.has(statusShort);
+    const isUpcoming = !isLive && !isDone;
 
-    // Live → ei cachea (aina tuore), tulossa → 60s cache, päättynyt → 10min cache
+    // Lineup-cache: live = ei cachea, tulossa = 60s, päättynyt = 10min
     const lineupRevalidate: number | false = isLive ? false : isDone ? 600 : 60;
-
     const lineupData = await fetchAPI(`/fixtures/lineups?fixture=${fixtureId}`, lineupRevalidate);
 
     const lineups = (lineupData?.response ?? []).map((team: any) => {
@@ -98,10 +119,47 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Cache-Control: live = ei cachea, muuten 30s
-    const cc = isLive
-      ? 'no-store'
-      : 's-maxage=30, stale-while-revalidate=10';
+    // Jos ei kokoonpanoja ja peli ei ole alkanut → hae joukkueen pelaajalista
+    let squads: any[] = [];
+    if (lineups.length === 0 && isUpcoming) {
+      const homeId = fx.teams.home.id;
+      const awayId = fx.teams.away.id;
+
+      const [homeSquadData, awaySquadData] = await Promise.all([
+        fetchAPI(`/players/squads?team=${homeId}`, 3600),  // 1h cache
+        fetchAPI(`/players/squads?team=${awayId}`, 3600),
+      ]);
+
+      const formatSquad = (squadData: any, teamName: string, teamLogo: string) => {
+        const players = squadData?.response?.[0]?.players ?? [];
+        return {
+          team: teamName,
+          logo: teamLogo,
+          players: players.map((p: any) => {
+            const nameLow = p.name.toLowerCase();
+            const isFinnish = [...finnishNames].some((fn) =>
+              fn.split(' ').some((part: string) => part.length >= 3 && nameLow.includes(part)) ||
+              nameLow.split(' ').some((part: string) => part.length >= 3 && fn.includes(part))
+            );
+            return {
+              number:      p.number ?? null,
+              name:        p.name,
+              pos:         p.position ?? null,
+              nationality: p.nationality ?? null,
+              flag:        countryFlag(p.nationality ?? ''),
+              isFinnish,
+            };
+          }),
+        };
+      };
+
+      squads = [
+        formatSquad(homeSquadData, fx.teams.home.name, fx.teams.home.logo),
+        formatSquad(awaySquadData, fx.teams.away.name, fx.teams.away.logo),
+      ];
+    }
+
+    const cc = isLive ? 'no-store' : 's-maxage=30, stale-while-revalidate=10';
 
     return Response.json({
       fixture: {
@@ -122,6 +180,7 @@ export async function GET(request: NextRequest) {
         country:     fx.league.country,
       },
       lineups,
+      squads,
       finnishPlayers: rows.map((r) => r.name),
     }, {
       headers: { 'Cache-Control': cc },
@@ -132,6 +191,7 @@ export async function GET(request: NextRequest) {
     return Response.json({
       fixture: { venue: null, city: null, referee: null, statusShort: 'NS', homeScore: null, awayScore: null, home: '', away: '', homeLogo: '', awayLogo: '', league: '' },
       lineups: [],
+      squads: [],
       finnishPlayers: [],
     }, { status: 200 });
   }

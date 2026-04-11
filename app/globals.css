@@ -462,6 +462,7 @@ a:hover { text-decoration: underline; }
 }
 
 .lineup-team {}
+.squad-note { font-size: 13px; color: #888; margin: 0 0 16px; font-style: italic; }
 .lineup-header {
   display: flex;
   align-items: center;

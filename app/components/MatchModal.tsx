@@ -17,6 +17,21 @@ interface LineupTeam {
   substitutes: Player[];
 }
 
+interface SquadPlayer {
+  number: number | null;
+  name: string;
+  pos: string | null;
+  nationality: string | null;
+  flag: string;
+  isFinnish: boolean;
+}
+
+interface SquadTeam {
+  team: string;
+  logo: string;
+  players: SquadPlayer[];
+}
+
 interface GameInfo {
   fixture: {
     venue: string | null;
@@ -32,6 +47,7 @@ interface GameInfo {
     league: string;
   };
   lineups: LineupTeam[];
+  squads: SquadTeam[];
   finnishPlayers: string[];
 }
 
@@ -85,7 +101,7 @@ export default function MatchModal({ fixtureId, home, away, onClose }: Props) {
       })
       .then((d) => {
         if (d?.error) throw new Error(d.error);
-        setData({ ...d, lineups: d?.lineups || [], finnishPlayers: d?.finnishPlayers || [] });
+        setData({ ...d, lineups: d?.lineups || [], squads: d?.squads || [], finnishPlayers: d?.finnishPlayers || [] });
         setLoading(false);
       })
       .catch((err) => {
@@ -110,6 +126,7 @@ export default function MatchModal({ fixtureId, home, away, onClose }: Props) {
     !['NS', 'TBD'].includes(fx.statusShort);
 
   const lineups = data?.lineups || [];
+  const squads  = data?.squads  || [];
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -153,6 +170,29 @@ export default function MatchModal({ fixtureId, home, away, onClose }: Props) {
             const status = data?.fixture?.statusShort ?? 'NS';
             if (DONE_STATUSES.has(status)) return <p>Ottelu päättynyt. Kokoonpanot eivät enää saatavilla.</p>;
             if (LIVE_STATUSES.has(status)) return <p>Kokoonpanoja ei saatu – kokeile hetken päästä uudelleen.</p>;
+            if (squads.length > 0) return (
+              <div className="squads">
+                <p className="squad-note">Viralliset kokoonpanot julkaistaan n. tunti ennen ottelua. Alla joukkueiden pelaajalistat:</p>
+                {squads.map((squad) => (
+                  <div key={squad.team} className="lineup-team">
+                    <div className="lineup-header">
+                      {squad.logo && <img src={squad.logo} width={22} height={22} />}
+                      <strong>{squad.team}</strong>
+                    </div>
+                    {squad.players.map((p) => (
+                      <div key={p.name} className={`player-row ${p.isFinnish ? 'finnish' : ''}`}>
+                        {p.number != null && <span className="player-num">{p.number}</span>}
+                        <span className="player-name">
+                          {p.flag && <span>{p.flag} </span>}
+                          {p.name}
+                        </span>
+                        {p.pos && <span className="player-pos">{p.pos?.charAt(0)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            );
             return <p>Kokoonpanot julkaistaan noin tunti ennen ottelun alkua.</p>;
           })()}
 
