@@ -81,10 +81,11 @@ export async function GET(request: NextRequest) {
 
     if (!fx) {
       return Response.json({
-        fixture: { venue: null, city: null, referee: null, statusShort: 'NS', homeScore: null, awayScore: null, home: '', away: '', homeLogo: '', awayLogy: '', league: '' },
+        fixture: { venue: null, city: null, referee: null, statusShort: 'NS', homeScore: null, awayScore: null, home: '', away: '', homeLogo: '', awayLogo: '', league: '' },
         lineups: [],
         squads: [],
         finnishPlayers: rows.map((r) => r.name),
+        _debug: { fixtureId, fxResponseLength: fxData?.response?.length ?? 0, fxErrors: fxData?.errors ?? null },
       }, { status: 200 });
     }
 
