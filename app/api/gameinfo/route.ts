@@ -1,7 +1,7 @@
 import { type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 
-const API_KEY  = process.env.APIFOOTBALL_KEY ?? '';
+const API_KEY  = process.env.APIFOOTBALL_KEY ?? '425b38292167d0a0f2a3fe691abe30a0';
 const BASE_URL = 'https://v3.football.api-sports.io';
 
 const LIVE_STATUSES = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE']);
@@ -22,6 +22,7 @@ async function fetchAPI(endpoint: string, revalidate: number | false = 30) {
     }
 
     const data = await res.json();
+    console.log('[API RESPONSE]', endpoint, 'status:', res.status, 'responseLen:', data?.response?.length, 'errors:', data?.errors);
 
     if (data?.errors && Object.keys(data.errors).length > 0) {
       console.warn('[API QUOTA]', data.errors);
@@ -75,8 +76,8 @@ export async function GET(request: NextRequest) {
 
     const finnishNames = new Set(rows.map((r) => r.name.toLowerCase()));
 
-    // Haetaan fixture-tiedot (30s cache)
-    const fxData = await fetchAPI(`/fixtures?id=${fixtureId}`, 30);
+    // Haetaan fixture-tiedot (ei cachea toistaiseksi)
+    const fxData = await fetchAPI(`/fixtures?id=${fixtureId}`, false);
     const fx = fxData?.response?.[0];
 
     if (!fx) {
