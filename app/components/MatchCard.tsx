@@ -25,21 +25,42 @@ interface Fixture {
 interface Props {
   fixture: Fixture;
   isToday: boolean;
+  isPast: boolean;
   broadcasters: Broadcaster[];
+  scorers: string[]; // normalisoituja maalintekijöiden nimiä
 }
 
-function PlayerList({ players }: { players: Player[] }) {
+// Poistaa skandit vertailua varten: Håkans → hakans
+function normalizeName(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+// Tarkistaa onko pelaaja tehnyt maalin sukunimen perusteella
+function didScore(playerName: string, scorers: string[]): boolean {
+  if (scorers.length === 0) return false;
+  const lastName = normalizeName(playerName.split(' ').at(-1) ?? playerName);
+  if (lastName.length < 3) return false;
+  return scorers.some((s) => s.includes(lastName) || lastName.includes(s.split(' ').at(-1) ?? s));
+}
+
+function PlayerList({ players, scorers }: { players: Player[]; scorers: string[] }) {
   if (players.length === 0) return null;
   return (
     <div className="team-players">
       {players.map((p) => (
-        <span key={p.name}>🇫🇮 {p.name}</span>
+        <span key={p.name}>
+          🇫🇮 {p.name}{didScore(p.name, scorers) ? ' ⚽' : ''}
+        </span>
       ))}
     </div>
   );
 }
 
-export default function MatchCard({ fixture, isToday, broadcasters }: Props) {
+export default function MatchCard({ fixture, isToday, isPast, broadcasters, scorers }: Props) {
   const [showModal, setShowModal] = useState(false);
 
   const kickoff = new Date(fixture.date);
@@ -49,6 +70,9 @@ export default function MatchCard({ fixture, isToday, broadcasters }: Props) {
   const homePlayers = fixture.players?.filter((p) => p.team === fixture.home) ?? [];
   const awayPlayers = fixture.players?.filter((p) => p.team === fixture.away) ?? [];
   const isNational  = !fixture.players || fixture.players.length === 0;
+
+  // Näytä LiveScore tänään tai menneille matseille (joista haetaan lopputulos)
+  const showLive = fixture.api_fixture_id && (isToday || isPast);
 
   return (
     <>
@@ -69,12 +93,12 @@ export default function MatchCard({ fixture, isToday, broadcasters }: Props) {
             )}
             <div className="team-info">
               <span className="team-name">{fixture.home}</span>
-              <PlayerList players={homePlayers} />
+              <PlayerList players={homePlayers} scorers={scorers} />
             </div>
           </div>
 
           <div className="match-center">
-            {isToday && fixture.api_fixture_id ? (
+            {showLive ? (
               <LiveScore fixtureId={fixture.api_fixture_id} matchDate={fixture.date} />
             ) : (
               <span className="vs">vs</span>
@@ -84,7 +108,7 @@ export default function MatchCard({ fixture, isToday, broadcasters }: Props) {
           <div className="team away">
             <div className="team-info">
               <span className="team-name">{fixture.away}</span>
-              <PlayerList players={awayPlayers} />
+              <PlayerList players={awayPlayers} scorers={scorers} />
             </div>
             {fixture.awayicon && (
               <img src={fixture.awayicon} alt={fixture.away} className="team-icon" width={32} height={32} />
@@ -92,7 +116,7 @@ export default function MatchCard({ fixture, isToday, broadcasters }: Props) {
           </div>
         </div>
 
-        {/* Footer: lähetystieto + lisätiedot */}
+        {/* Footer */}
         <div className="match-footer">
           <button className="info-btn" onClick={() => setShowModal(true)}>
             Lisätietoa pelistä

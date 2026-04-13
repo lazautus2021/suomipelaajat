@@ -411,25 +411,63 @@ a:hover { text-decoration: underline; }
   border-bottom: 1px solid var(--border);
   position: relative;
 }
-.modal-teams {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.modal-teams-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   gap: 10px;
-  font-size: 16px;
-  font-weight: 600;
-  flex-wrap: wrap;
-  text-align: center;
+  align-items: start;
   padding-right: 28px;
 }
-.modal-teams img { object-fit: contain; flex-shrink: 0; }
+.modal-team-side {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.modal-team-side.modal-team-away {
+  align-items: flex-end;
+  text-align: right;
+}
+.modal-team-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  flex-wrap: wrap;
+}
+.modal-team-away .modal-team-name {
+  justify-content: flex-end;
+}
+.modal-team-name img { object-fit: contain; flex-shrink: 0; }
+.modal-score-center {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 2px;
+}
 .modal-score {
   font-size: 22px;
   font-weight: 700;
   color: var(--green);
   padding: 0 4px;
+  white-space: nowrap;
 }
 .modal-vs { color: var(--muted); font-weight: 400; }
+
+/* Maalintekijät headerin alla */
+.modal-scorer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+.modal-scorer-right .scorer-row {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+.modal-scorer-right .scorer-min {
+  text-align: right;
+}
 .modal-meta {
   display: flex;
   gap: 16px;
@@ -810,6 +848,100 @@ a:hover { text-decoration: underline; }
   padding: 1px 7px;
   font-size: 12px;
   margin-right: 4px;
+}
+
+/* ── Tulevat / Menneet -tabit ───────────────────────────── */
+.view-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 16px 0 12px;
+}
+.view-tab {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 20px;
+  border-radius: 20px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.view-tab.active {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+}
+.view-tab:not(.active):hover {
+  background: #eef2fb;
+  border-color: #b0bdd8;
+  color: var(--text);
+}
+
+
+/* ── Menneet / Tulevat otsikot ──────────────────────────── */
+.section-label {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  margin: 24px 0 8px;
+}
+
+/* ── Maalintekijät modaalissa ───────────────────────────── */
+.team-scorers {
+  margin: 6px 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.scorer-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.scorer-row.finnish-scorer {
+  background: #d4edda;
+  color: #155724;
+  font-weight: 700;
+  border-left: 3px solid #28a745;
+}
+
+.scorer-min {
+  color: var(--muted);
+  font-size: 12px;
+  min-width: 32px;
+  flex-shrink: 0;
+}
+
+.scorer-name {
+  flex: 1;
+}
+
+.scorer-detail {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* ── Avaus / Vaihtopenkki otsikot modaalissa ────────────── */
+.lineup-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  margin: 10px 0 4px;
 }
 
 /* ── Mobiili ────────────────────────────────────────────── */

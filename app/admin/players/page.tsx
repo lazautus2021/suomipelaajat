@@ -15,6 +15,7 @@ interface CheckResult {
   name: string;
   currentTeam: string;
   apiTeam: string | null;
+  isLoan: boolean;
   changed: boolean;
   error: string | null;
 }
@@ -23,19 +24,17 @@ const EMPTY: Omit<Player, 'id'> & { id: string } = { id: '', name: '', nationali
 const BATCH = 3;
 
 export default function PlayersAdmin() {
-  const [players, setPlayers]         = useState<Player[]>([]);
-  const [editing, setEditing]         = useState<Player | null>(null);
-  const [adding, setAdding]           = useState(false);
-  const [form, setForm]               = useState<typeof EMPTY>({ ...EMPTY });
-  const [search, setSearch]           = useState('');
-  const [saving, setSaving]           = useState(false);
-  const [msg, setMsg]                 = useState('');
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [editing, setEditing] = useState<Player | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState<typeof EMPTY>({ ...EMPTY });
+  const [search, setSearch] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
 
-  // Joukkuetarkistus
-  const [checking, setChecking]       = useState(false);
+  const [checking, setChecking] = useState(false);
   const [checkProgress, setCheckProgress] = useState('');
-  const [checkResults, setCheckResults]   = useState<CheckResult[]>([]);
-  const [updating, setUpdating]       = useState<number | null>(null);
+  const [checkResults, setCheckResults] = useState<CheckResult[]>([]);
 
   const load = () =>
     fetch('/api/admin/players').then((r) => r.json()).then(setPlayers);
@@ -82,33 +81,7 @@ export default function PlayersAdmin() {
     setForm({ ...EMPTY });
   };
 
-  // Päivitä yksittäisen pelaajan joukkue
-  const applyUpdate = async (result: CheckResult) => {
-    if (!result.apiTeam) return;
-    setUpdating(result.id);
-    const player = players.find((p) => p.id === result.id);
-    if (!player) return;
-    await fetch('/api/admin/players', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...player, team: result.apiTeam }),
-    });
-    await load();
-    setCheckResults((prev) =>
-      prev.map((r) => r.id === result.id ? { ...r, currentTeam: result.apiTeam!, changed: false } : r)
-    );
-    setUpdating(null);
-    flash(`${result.name} päivitetty: ${result.apiTeam}`);
-  };
 
-  // Päivitä kaikki muuttuneet
-  const applyAll = async () => {
-    const changed = checkResults.filter((r) => r.changed && r.apiTeam);
-    for (const r of changed) await applyUpdate(r);
-    flash('Kaikki päivitetty!');
-  };
-
-  // Tarkista joukkueet API:sta erissä
   const checkTeams = async () => {
     setChecking(true);
     setCheckResults([]);
@@ -129,7 +102,7 @@ export default function PlayersAdmin() {
         const results: CheckResult[] = await res.json();
         allResults.push(...results);
         setCheckResults([...allResults]);
-        // Keskeytä jos quota täynnä
+
         if (results.some((r) => r.error?.includes('quota'))) {
           setCheckProgress('API quota täynnä, keskeytetään.');
           break;
@@ -152,99 +125,137 @@ export default function PlayersAdmin() {
   );
 
   const changedResults = checkResults.filter((r) => r.changed);
+  const loanResults   = checkResults.filter((r) => r.isLoan && r.apiTeam !== r.currentTeam);
+  const okResults     = checkResults.filter((r) => !r.changed && !r.error && !r.isLoan || (r.isLoan && r.apiTeam === r.currentTeam));
+  const errorResults  = checkResults.filter((r) => r.error);
 
   return (
     <div>
       <div className="admin-page-header">
-        <h1>Pelaajat <span className="admin-count">({players.length})</span></h1>
+        <h1>Pelaajat ({players.length})</h1>
         <button className="admin-btn primary" onClick={startAdd}>+ Lisää pelaaja</button>
       </div>
 
       {msg && <div className="admin-flash">{msg}</div>}
 
-      {/* Lisää / muokkaa -lomake */}
-      {(editing || adding) && (
-        <div className="admin-form-box">
-          <h2>{adding ? 'Lisää pelaaja' : `Muokkaa: ${editing?.name}`}</h2>
-          <div className="admin-form-grid">
-            {adding && (
-              <label>
-                API ID
-                <input value={form.id} onChange={(e) => setForm({ ...form, id: e.target.value })} placeholder="esim. 963" />
-              </label>
-            )}
-            <label>
-              Nimi
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="L. Hrádecký" />
-            </label>
-            <label>
-              Joukkue
-              <input value={form.team} onChange={(e) => setForm({ ...form, team: e.target.value })} placeholder="Monaco" />
-            </label>
-            <label>
-              Joukkue ID (API)
-              <input value={form.team_id} onChange={(e) => setForm({ ...form, team_id: e.target.value as any })} placeholder="91" />
-            </label>
-            <label>
-              Kansalaisuus
-              <input value={form.nationality} onChange={(e) => setForm({ ...form, nationality: e.target.value })} />
-            </label>
-          </div>
-          <div className="admin-form-actions">
-            <button className="admin-btn primary" onClick={save} disabled={saving}>
-              {saving ? 'Tallennetaan...' : 'Tallenna'}
-            </button>
-            <button className="admin-btn" onClick={() => { setEditing(null); setAdding(false); }}>
-              Peruuta
-            </button>
-          </div>
-        </div>
+      {/* 🔥 EDIT / ADD FORM */}
+{(editing || adding) && (
+  <div className="admin-form-box">
+    <h2>{adding ? 'Lisää pelaaja' : `Muokkaa: ${editing?.name}`}</h2>
+
+    <div className="admin-form-grid">
+      {adding && (
+        <label>
+          API ID
+          <input
+            value={form.id}
+            onChange={(e) => setForm({ ...form, id: e.target.value })}
+          />
+        </label>
       )}
 
-      {/* Joukkuetarkistus */}
+      <label>
+        Nimi
+        <input
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+        />
+      </label>
+
+      <label>
+        Joukkue
+        <input
+          value={form.team}
+          onChange={(e) => setForm({ ...form, team: e.target.value })}
+        />
+      </label>
+
+      <label>
+        Joukkue ID
+        <input
+          value={form.team_id}
+          onChange={(e) =>
+            setForm({ ...form, team_id: Number(e.target.value) })
+          }
+        />
+      </label>
+
+      <label>
+        Kansalaisuus
+        <input
+          value={form.nationality}
+          onChange={(e) =>
+            setForm({ ...form, nationality: e.target.value })
+          }
+        />
+      </label>
+    </div>
+
+    <div className="admin-form-actions">
+      <button className="admin-btn primary" onClick={save} disabled={saving}>
+        {saving ? 'Tallennetaan...' : 'Tallenna'}
+      </button>
+
+      <button
+        className="admin-btn"
+        onClick={() => {
+          setEditing(null);
+          setAdding(false);
+        }}
+      >
+        Peruuta
+      </button>
+    </div>
+  </div>
+)}
+      
+      {/* Tarkistus */}
       <div className="admin-form-box" style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <h2 style={{ margin: 0 }}>Tarkista joukkueet API:sta</h2>
-          <button className="admin-btn primary" onClick={checkTeams} disabled={checking}>
-            {checking ? 'Tarkistetaan...' : '🔄 Tarkista'}
-          </button>
-          {changedResults.length > 0 && (
-            <button className="admin-btn" onClick={applyAll}>
-              Päivitä kaikki ({changedResults.length})
-            </button>
-          )}
-        </div>
-        {checkProgress && <p style={{ margin: '10px 0 0', fontSize: 13, color: '#666' }}>{checkProgress}</p>}
+        <h2>Tarkista joukkueet API:sta</h2>
+
+        <button className="admin-btn primary" onClick={checkTeams} disabled={checking}>
+          {checking ? 'Tarkistetaan...' : '🔄 Tarkista'}
+        </button>
+
+        {checkProgress && <p style={{ fontSize: 13, marginTop: 10 }}>{checkProgress}</p>}
 
         {checkResults.length > 0 && (
-          <div style={{ marginTop: 16 }}>
-            {/* Muuttuneet ensin */}
-            {changedResults.length === 0 && !checking && (
-              <p style={{ fontSize: 13, color: '#4caf50', margin: 0 }}>✅ Kaikki joukkueet ajan tasalla!</p>
+          <div style={{ marginTop: 20, fontSize: 13 }}>
+            <p style={{ color: '#888', fontStyle: 'italic', margin: '0 0 12px' }}>
+              Tulokset ovat suuntaa-antavia — päivitä muutokset manuaalisesti taulukosta jos API-ehdotus vaikuttaa oikealta.
+            </p>
+
+            {changedResults.length > 0 && (
+              <>
+                <h4>🔄 Mahdolliset muutokset ({changedResults.length})</h4>
+                {changedResults.map((r) => (
+                  <div key={r.id} className="check-result-row changed">
+                    <span className="check-name">{r.name}</span>
+                    <span className="check-old">{r.currentTeam}</span>
+                    <span className="check-arrow">→</span>
+                    <span className="check-new">{r.apiTeam}</span>
+                  </div>
+                ))}
+              </>
             )}
-            {changedResults.map((r) => (
-              <div key={r.id} className="check-result-row changed">
-                <span className="check-name">{r.name}</span>
-                <span className="check-old">{r.currentTeam}</span>
-                <span className="check-arrow">→</span>
-                <span className="check-new">{r.apiTeam}</span>
-                <button
-                  className="admin-btn primary"
-                  style={{ fontSize: 12, padding: '3px 10px' }}
-                  onClick={() => applyUpdate(r)}
-                  disabled={updating === r.id}
-                >
-                  {updating === r.id ? '...' : 'Päivitä'}
-                </button>
-              </div>
-            ))}
-            {/* Virheet */}
-            {checkResults.filter((r) => r.error).map((r) => (
-              <div key={r.id} className="check-result-row error">
-                <span className="check-name">{r.name}</span>
-                <span style={{ color: '#e53935', fontSize: 13 }}>{r.error}</span>
-              </div>
-            ))}
+
+            {loanResults.length > 0 && (
+              <>
+                <h4 style={{ marginTop: 16 }}>🔄 Lainalla ({loanResults.length})</h4>
+                {loanResults.map((r) => (
+                  <div key={r.id} className="check-result-row">
+                    <span className="check-name">{r.name}</span>
+                    <span>{r.currentTeam}</span>
+                    <span className="check-arrow">→</span>
+                    <span style={{ color: '#888' }}>{r.apiTeam} (laina)</span>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {changedResults.length === 0 && loanResults.length === 0 && (
+              <p style={{ color: '#4caf50' }}>✅ Kaikki näyttää ajan tasalta!</p>
+            )}
           </div>
         )}
       </div>
@@ -252,39 +263,39 @@ export default function PlayersAdmin() {
       {/* Haku */}
       <input
         className="admin-search"
-        placeholder="Hae nimellä tai joukkueella..."
+        placeholder="Hae..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
 
       {/* Taulukko */}
-      <div className="admin-table-wrap">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Nimi</th>
-              <th>Joukkue</th>
-              <th>Joukkue ID</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((p) => (
-              <tr key={p.id} className={editing?.id === p.id ? 'active-row' : ''}>
-                <td className="muted">{p.id}</td>
-                <td>{p.name}</td>
-                <td>{p.team}</td>
-                <td className="muted">{p.team_id}</td>
-                <td className="admin-row-actions">
-                  <button onClick={() => startEdit(p)}>Muokkaa</button>
-                  <button className="danger" onClick={() => remove(p)}>Poista</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+  <div className="admin-table-wrap">
+  <table className="admin-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nimi</th>
+        <th>Joukkue</th>
+        <th>Joukkue ID</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {filtered.map((p) => (
+        <tr key={p.id} className={editing?.id === p.id ? 'active-row' : ''}>
+          <td className="muted">{p.id}</td>
+          <td>{p.name}</td>
+          <td>{p.team}</td>
+          <td className="muted">{p.team_id}</td>
+          <td className="admin-row-actions">
+            <button onClick={() => startEdit(p)}>Muokkaa</button>
+            <button className="danger" onClick={() => remove(p)}>Poista</button>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
     </div>
   );
 }

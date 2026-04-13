@@ -1,11 +1,15 @@
 import { type NextRequest } from 'next/server';
 import { getDb } from '@/lib/db';
 
-const API_KEY  = process.env.APIFOOTBALL_KEY ?? '425b38292167d0a0f2a3fe691abe30a0';
+const API_KEY  = process.env.APIFOOTBALL_KEY ?? 'YOUR_KEY';
 const BASE_URL = 'https://v3.football.api-sports.io';
 
 const LIVE_STATUSES = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE']);
 const DONE_STATUSES = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
+
+function normalizeName(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
 
 async function fetchAPI(endpoint: string, revalidate: number | false = 30) {
   try {
@@ -22,7 +26,6 @@ async function fetchAPI(endpoint: string, revalidate: number | false = 30) {
     }
 
     const data = await res.json();
-    console.log('[API RESPONSE]', endpoint, 'status:', res.status, 'responseLen:', data?.response?.length, 'errors:', data?.errors);
 
     if (data?.errors && Object.keys(data.errors).length > 0) {
       console.warn('[API QUOTA]', data.errors);
@@ -37,22 +40,9 @@ async function fetchAPI(endpoint: string, revalidate: number | false = 30) {
   }
 }
 
-// Maa → lippu-emoji
 function countryFlag(nationality: string): string {
   const map: Record<string, string> = {
-    'Finland': '🇫🇮', 'Sweden': '🇸🇪', 'Norway': '🇳🇴', 'Denmark': '🇩🇰',
-    'Germany': '🇩🇪', 'France': '🇫🇷', 'Spain': '🇪🇸', 'Italy': '🇮🇹',
-    'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Netherlands': '🇳🇱', 'Portugal': '🇵🇹', 'Belgium': '🇧🇪',
-    'Brazil': '🇧🇷', 'Argentina': '🇦🇷', 'Croatia': '🇭🇷', 'Poland': '🇵🇱',
-    'Czech Republic': '🇨🇿', 'Austria': '🇦🇹', 'Switzerland': '🇨🇭',
-    'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Ireland': '🇮🇪', 'Serbia': '🇷🇸',
-    'Turkey': '🇹🇷', 'Greece': '🇬🇷', 'Hungary': '🇭🇺', 'Slovakia': '🇸🇰',
-    'Romania': '🇷🇴', 'Ukraine': '🇺🇦', 'Russia': '🇷🇺', 'USA': '🇺🇸',
-    'Canada': '🇨🇦', 'Mexico': '🇲🇽', 'Colombia': '🇨🇴', 'Uruguay': '🇺🇾',
-    'Japan': '🇯🇵', 'South Korea': '🇰🇷', 'Australia': '🇦🇺', 'Morocco': '🇲🇦',
-    'Nigeria': '🇳🇬', 'Senegal': '🇸🇳', 'Ghana': '🇬🇭', 'Ivory Coast': '🇨🇮',
-    'Iceland': '🇮🇸', 'Estonia': '🇪🇪', 'Latvia': '🇱🇻', 'Lithuania': '🇱🇹',
-    'Slovenia': '🇸🇮', 'Bulgaria': '🇧🇬', 'Albania': '🇦🇱', 'Kosovo': '🇽🇰',
+    'Finland': '🇫🇮',
   };
   return map[nationality] ?? '';
 }
@@ -76,17 +66,17 @@ export async function GET(request: NextRequest) {
 
     const finnishNames = new Set(rows.map((r) => r.name.toLowerCase()));
 
-    // Haetaan fixture-tiedot (ei cachea toistaiseksi)
+    // FIXTURE
     const fxData = await fetchAPI(`/fixtures?id=${fixtureId}`, false);
     const fx = fxData?.response?.[0];
 
     if (!fx) {
       return Response.json({
-        fixture: { venue: null, city: null, referee: null, statusShort: 'NS', homeScore: null, awayScore: null, home: '', away: '', homeLogo: '', awayLogo: '', league: '' },
+        fixture: {},
         lineups: [],
         squads: [],
+        scorers: { home: [], away: [] },
         finnishPlayers: rows.map((r) => r.name),
-        _debug: { fixtureId, fxResponseLength: fxData?.response?.length ?? 0, fxErrors: fxData?.errors ?? null },
       }, { status: 200 });
     }
 
@@ -95,9 +85,56 @@ export async function GET(request: NextRequest) {
     const isDone = DONE_STATUSES.has(statusShort);
     const isUpcoming = !isLive && !isDone;
 
-    // Lineup-cache: live = ei cachea, tulossa = 60s, päättynyt = 10min
-    const lineupRevalidate: number | false = isLive ? false : isDone ? 600 : 60;
-    const lineupData = await fetchAPI(`/fixtures/lineups?fixture=${fixtureId}`, lineupRevalidate);
+    // 🔥 EVENTS → MAALIT
+    const eventsData = await fetchAPI(`/fixtures/events?fixture=${fixtureId}`, false);
+
+    const goalEvents = (eventsData?.response ?? []).filter(
+      (e: any) => e.type === 'Goal'
+    );
+
+    const isFinnishPlayer = (name: string) => {
+      const pNorm = normalizeName(name);
+      return [...finnishNames].some((fn) => {
+        const fnNorm = normalizeName(fn);
+        // Vertaa sukunimiä: API palauttaa usein "D. Hakans" kun DB:ssä "Daniel Håkans"
+        const pLast = pNorm.split(' ').at(-1) ?? '';
+        const fnLast = fnNorm.split(' ').at(-1) ?? '';
+        if (pLast.length >= 3 && fnLast.length >= 3 && pLast === fnLast) return true;
+        // Laajempi osuma: joku osa nimestä löytyy toisesta
+        return (
+          fnNorm.split(' ').some((part) => part.length >= 3 && pNorm.includes(part)) ||
+          pNorm.split(' ').some((part) => part.length >= 3 && fnNorm.includes(part))
+        );
+      });
+    };
+
+    const scorers = {
+      home: [] as any[],
+      away: [] as any[],
+    };
+
+    goalEvents.forEach((e: any) => {
+      const name = e.player?.name ?? 'Unknown';
+      const teamId = e.team?.id;
+
+      const scorer = {
+        name,
+        minute: e.time?.elapsed,
+        extra: e.time?.extra,
+        isFinnish: isFinnishPlayer(name),
+        isPenalty: e.detail === 'Penalty',
+        isOwnGoal: e.detail === 'Own Goal',
+      };
+
+      if (teamId === fx.teams.home.id) {
+        scorers.home.push(scorer);
+      } else {
+        scorers.away.push(scorer);
+      }
+    });
+
+    // LINEUPS
+    const lineupData = await fetchAPI(`/fixtures/lineups?fixture=${fixtureId}`, isLive ? false : 60);
 
     const lineups = (lineupData?.response ?? []).map((team: any) => {
       const markFinnish = (players: any[]) =>
@@ -105,11 +142,7 @@ export async function GET(request: NextRequest) {
           number: p.player.number,
           name:   p.player.name,
           pos:    p.player.pos,
-          isFinnish: [...finnishNames].some((fn) => {
-            const pLow = p.player.name.toLowerCase();
-            return fn.split(' ').some((part: string) => part.length >= 3 && pLow.includes(part)) ||
-                   pLow.split(' ').some((part: string) => part.length >= 3 && fn.includes(part));
-          }),
+          isFinnish: isFinnishPlayer(p.player.name),
         }));
 
       return {
@@ -121,39 +154,26 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Jos ei kokoonpanoja ja peli ei ole alkanut → hae joukkueen pelaajalista
+    // SQUADS fallback
     let squads: any[] = [];
     if (lineups.length === 0 && isUpcoming) {
-      const homeId = fx.teams.home.id;
-      const awayId = fx.teams.away.id;
-
       const [homeSquadData, awaySquadData] = await Promise.all([
-        fetchAPI(`/players/squads?team=${homeId}`, 3600),  // 1h cache
-        fetchAPI(`/players/squads?team=${awayId}`, 3600),
+        fetchAPI(`/players/squads?team=${fx.teams.home.id}`, 3600),
+        fetchAPI(`/players/squads?team=${fx.teams.away.id}`, 3600),
       ]);
 
-      const formatSquad = (squadData: any, teamName: string, teamLogo: string) => {
-        const players = squadData?.response?.[0]?.players ?? [];
-        return {
-          team: teamName,
-          logo: teamLogo,
-          players: players.map((p: any) => {
-            const nameLow = p.name.toLowerCase();
-            const isFinnish = [...finnishNames].some((fn) =>
-              fn.split(' ').some((part: string) => part.length >= 3 && nameLow.includes(part)) ||
-              nameLow.split(' ').some((part: string) => part.length >= 3 && fn.includes(part))
-            );
-            return {
-              number:      p.number ?? null,
-              name:        p.name,
-              pos:         p.position ?? null,
-              nationality: p.nationality ?? null,
-              flag:        countryFlag(p.nationality ?? ''),
-              isFinnish,
-            };
-          }),
-        };
-      };
+      const formatSquad = (data: any, teamName: string, logo: string) => ({
+        team: teamName,
+        logo,
+        players: (data?.response?.[0]?.players ?? []).map((p: any) => ({
+          number: p.number ?? null,
+          name: p.name,
+          pos: p.position ?? null,
+          nationality: p.nationality ?? null,
+          flag: countryFlag(p.nationality ?? ''),
+          isFinnish: isFinnishPlayer(p.name),
+        })),
+      });
 
       squads = [
         formatSquad(homeSquadData, fx.teams.home.name, fx.teams.home.logo),
@@ -165,24 +185,25 @@ export async function GET(request: NextRequest) {
 
     return Response.json({
       fixture: {
-        id:          fx.fixture.id,
-        date:        fx.fixture.date,
-        venue:       fx.fixture.venue?.name ?? null,
-        city:        fx.fixture.venue?.city ?? null,
-        referee:     fx.fixture.referee ?? null,
+        id: fx.fixture.id,
+        date: fx.fixture.date,
+        venue: fx.fixture.venue?.name ?? null,
+        city: fx.fixture.venue?.city ?? null,
+        referee: fx.fixture.referee ?? null,
         statusShort,
-        elapsed:     fx.fixture.status.elapsed,
-        homeScore:   fx.goals.home,
-        awayScore:   fx.goals.away,
-        home:        fx.teams.home.name,
-        away:        fx.teams.away.name,
-        homeLogo:    fx.teams.home.logo,
-        awayLogo:    fx.teams.away.logo,
-        league:      fx.league.name,
-        country:     fx.league.country,
+        elapsed: fx.fixture.status.elapsed,
+        homeScore: fx.goals.home,
+        awayScore: fx.goals.away,
+        home: fx.teams.home.name,
+        away: fx.teams.away.name,
+        homeLogo: fx.teams.home.logo,
+        awayLogo: fx.teams.away.logo,
+        league: fx.league.name,
+        country: fx.league.country,
       },
       lineups,
       squads,
+      scorers, // 👈 TÄRKEIN LISÄYS
       finnishPlayers: rows.map((r) => r.name),
     }, {
       headers: { 'Cache-Control': cc },
@@ -191,9 +212,10 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     console.error('[LIVE API ERROR]', err);
     return Response.json({
-      fixture: { venue: null, city: null, referee: null, statusShort: 'NS', homeScore: null, awayScore: null, home: '', away: '', homeLogo: '', awayLogo: '', league: '' },
+      fixture: {},
       lineups: [],
       squads: [],
+      scorers: { home: [], away: [] },
       finnishPlayers: [],
     }, { status: 200 });
   }

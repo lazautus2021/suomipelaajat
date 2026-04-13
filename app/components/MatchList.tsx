@@ -20,6 +20,7 @@ interface Fixture {
 interface Props {
   fixtures: Fixture[];
   broadcasterMap: Record<string, Broadcaster[]>;
+  scorersMap: Record<number, string[]>;
 }
 
 const COOKIE = 'selectedCompetitions';
@@ -40,7 +41,13 @@ function isToday(dateStr: string) {
   return d.toDateString() === now.toDateString();
 }
 
-export default function MatchList({ fixtures, broadcasterMap }: Props) {
+function isPast(dateStr: string) {
+  return new Date(dateStr).getTime() < Date.now();
+}
+
+export default function MatchList({ fixtures, broadcasterMap, scorersMap }: Props) {
+  const [showPast, setShowPast] = useState(false);
+
   const { clubComps, nationalComps } = useMemo(() => {
     const compHasPlayers = new Map<string, boolean>();
     for (const f of fixtures) {
@@ -56,7 +63,6 @@ export default function MatchList({ fixtures, broadcasterMap }: Props) {
 
   const [selected, setSelected] = useState<Set<string>>(() => new Set(competitions));
 
-  // Lataa cookiesta
   useEffect(() => {
     const saved = getCookie(COOKIE);
     if (saved) {
@@ -73,12 +79,18 @@ export default function MatchList({ fixtures, broadcasterMap }: Props) {
     });
   };
 
-  const selectAll  = () => { setSelected(new Set(competitions)); setCookie(COOKIE, JSON.stringify(competitions)); };
-  const clearAll   = () => { setSelected(new Set()); setCookie(COOKIE, '[]'); };
+  const selectAll = () => { setSelected(new Set(competitions)); setCookie(COOKIE, JSON.stringify(competitions)); };
+  const clearAll  = () => { setSelected(new Set()); setCookie(COOKIE, '[]'); };
 
-  const visible = fixtures.filter((f) => selected.has(f.competition));
+  const visible = fixtures.filter((f) =>
+    selected.has(f.competition) &&
+    (nationalComps.includes(f.competition) || (f.players && f.players.length > 0))
+  );
 
-  // Tänään pelattavien fixture ID:t maalihälytyksiin
+  // Jaetaan menneet (käänteinen järjestys) ja tulevat
+  const pastFixtures     = [...visible].filter((f) => isPast(f.date)).reverse();
+  const upcomingFixtures = visible.filter((f) => !isPast(f.date));
+
   const todayFixtureIds = useMemo(
     () => fixtures.filter((f) => isToday(f.date) && f.api_fixture_id).map((f) => f.api_fixture_id),
     [fixtures]
@@ -125,16 +137,60 @@ export default function MatchList({ fixtures, broadcasterMap }: Props) {
         )}
       </div>
 
-      {/* Ottelulista */}
-      <div className="match-list">
-        {visible.length === 0 ? (
-          <p className="empty">Ei otteluita valituilla kilpailuilla.</p>
-        ) : (
-          visible.map((f) => (
-            <MatchCard key={f.id} fixture={f} isToday={isToday(f.date)} broadcasters={broadcasterMap[f.competition] ?? []} />
-          ))
-        )}
+      {/* Tulevat / Menneet -tabit */}
+      <div className="view-tabs">
+        <button
+          className={`view-tab${!showPast ? ' active' : ''}`}
+          onClick={() => setShowPast(false)}
+        >
+          Tulevat
+        </button>
+        <button
+          className={`view-tab${showPast ? ' active' : ''}`}
+          onClick={() => setShowPast(true)}
+        >
+          Menneet
+        </button>
       </div>
+
+      {/* Listaus */}
+      {!showPast && (
+        upcomingFixtures.length > 0 ? (
+          <div className="match-list">
+            {upcomingFixtures.map((f) => (
+              <MatchCard
+                key={f.id}
+                fixture={f}
+                isToday={isToday(f.date)}
+                isPast={false}
+                broadcasters={broadcasterMap[f.competition] ?? []}
+                scorers={scorersMap[f.api_fixture_id] ?? []}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="empty">Ei tulevia otteluita valituilla kilpailuilla.</p>
+        )
+      )}
+
+      {showPast && (
+        pastFixtures.length > 0 ? (
+          <div className="match-list">
+            {pastFixtures.map((f) => (
+              <MatchCard
+                key={f.id}
+                fixture={f}
+                isToday={isToday(f.date)}
+                isPast={true}
+                broadcasters={broadcasterMap[f.competition] ?? []}
+                scorers={scorersMap[f.api_fixture_id] ?? []}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="empty">Ei menneitä otteluita valituilla kilpailuilla.</p>
+        )
+      )}
     </>
   );
 }

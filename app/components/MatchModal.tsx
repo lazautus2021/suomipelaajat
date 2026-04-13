@@ -32,6 +32,15 @@ interface SquadTeam {
   players: SquadPlayer[];
 }
 
+interface Scorer {
+  name: string;
+  minute: number;
+  extra?: number;
+  isFinnish: boolean;
+  isPenalty: boolean;
+  isOwnGoal: boolean;
+}
+
 interface GameInfo {
   fixture: {
     venue: string | null;
@@ -48,6 +57,7 @@ interface GameInfo {
   };
   lineups: LineupTeam[];
   squads: SquadTeam[];
+  scorers: { home: Scorer[]; away: Scorer[] };
   finnishPlayers: string[];
 }
 
@@ -60,7 +70,6 @@ interface Props {
 
 const LIVE_STATUSES = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE']);
 const DONE_STATUSES = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
-
 const POS_ORDER: Record<string, number> = { G: 0, D: 1, M: 2, F: 3 };
 
 function sortByPos(players: Player[] = []) {
@@ -80,12 +89,29 @@ function PlayerRow({ player }: { player: Player }) {
   );
 }
 
+function ScorerList({ scorers, align }: { scorers: Scorer[]; align: 'left' | 'right' }) {
+  if (scorers.length === 0) return null;
+  return (
+    <div className={`modal-scorer-list modal-scorer-${align}`}>
+      {scorers.map((s, i) => (
+        <div key={i} className={`scorer-row${s.isFinnish ? ' finnish-scorer' : ''}`}>
+          <span className="scorer-min">{s.minute}'{s.extra ? `+${s.extra}` : ''}</span>
+          <span className="scorer-name">
+            {s.isOwnGoal ? '🔴' : '⚽'} {s.name}
+            {s.isPenalty && <span className="scorer-detail"> (rp)</span>}
+            {s.isOwnGoal && <span className="scorer-detail"> (og)</span>}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function MatchModal({ fixtureId, home, away, onClose }: Props) {
   const [data, setData] = useState<GameInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 🔥 FIXATTU FETCH
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -93,15 +119,18 @@ export default function MatchModal({ fixtureId, home, away, onClose }: Props) {
     fetch(`/api/gameinfo?fixture_id=${fixtureId}`)
       .then(async (r) => {
         const text = await r.text();
-        try {
-          return JSON.parse(text);
-        } catch {
-          throw new Error('API ei vastannut oikein (mahdollisesti raja täynnä)');
-        }
+        try { return JSON.parse(text); }
+        catch { throw new Error('API ei vastannut oikein (mahdollisesti raja täynnä)'); }
       })
       .then((d) => {
         if (d?.error) throw new Error(d.error);
-        setData({ ...d, lineups: d?.lineups || [], squads: d?.squads || [], finnishPlayers: d?.finnishPlayers || [] });
+        setData({
+          ...d,
+          lineups:  d?.lineups  || [],
+          squads:   d?.squads   || [],
+          scorers:  d?.scorers  || { home: [], away: [] },
+          finnishPlayers: d?.finnishPlayers || [],
+        });
         setLoading(false);
       })
       .catch((err) => {
@@ -110,23 +139,22 @@ export default function MatchModal({ fixtureId, home, away, onClose }: Props) {
       });
   }, [fixtureId]);
 
-  // Escape sulku
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  const fx = data?.fixture;
+  const fx      = data?.fixture;
+  const lineups = data?.lineups || [];
+  const squads  = data?.squads  || [];
+  const scorers = data?.scorers || { home: [], away: [] };
 
   const hasScore =
     fx &&
     fx.homeScore != null &&
     fx.awayScore != null &&
     !['NS', 'TBD'].includes(fx.statusShort);
-
-  const lineups = data?.lineups || [];
-  const squads  = data?.squads  || [];
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -135,27 +163,38 @@ export default function MatchModal({ fixtureId, home, away, onClose }: Props) {
 
         {/* HEADER */}
         <div className="modal-header">
-          <div className="modal-teams">
-            {fx?.homeLogo && <img src={fx.homeLogo} width={28} height={28} />}
-            <span>{fx?.home ?? home}</span>
+          <div className="modal-teams-grid">
+            {/* Kotijoukkue */}
+            <div className="modal-team-side">
+              <div className="modal-team-name">
+                {fx?.homeLogo && <img src={fx.homeLogo} width={24} height={24} />}
+                <span>{fx?.home ?? home}</span>
+              </div>
+              <ScorerList scorers={scorers.home} align="left" />
+            </div>
 
-            {hasScore ? (
-              <span className="modal-score">
-                {fx!.homeScore} – {fx!.awayScore}
-              </span>
-            ) : (
-              <span className="modal-vs">vs</span>
-            )}
+            {/* Tulos */}
+            <div className="modal-score-center">
+              {hasScore ? (
+                <span className="modal-score">{fx!.homeScore} – {fx!.awayScore}</span>
+              ) : (
+                <span className="modal-vs">vs</span>
+              )}
+            </div>
 
-            <span>{fx?.away ?? away}</span>
-            {fx?.awayLogo && <img src={fx.awayLogo} width={28} height={28} />}
+            {/* Vierasjoukkue */}
+            <div className="modal-team-side modal-team-away">
+              <div className="modal-team-name">
+                <span>{fx?.away ?? away}</span>
+                {fx?.awayLogo && <img src={fx.awayLogo} width={24} height={24} />}
+              </div>
+              <ScorerList scorers={scorers.away} align="right" />
+            </div>
           </div>
 
           {fx && (
             <div className="modal-meta">
-              {fx.venue && (
-                <span>📍 {fx.venue}{fx.city ? `, ${fx.city}` : ''}</span>
-              )}
+              {fx.venue && <span>📍 {fx.venue}{fx.city ? `, ${fx.city}` : ''}</span>}
               {fx.referee && <span>🟨 {fx.referee}</span>}
             </div>
           )}
@@ -199,29 +238,27 @@ export default function MatchModal({ fixtureId, home, away, onClose }: Props) {
           {lineups.length > 0 && (
             <div className="lineups">
               {lineups.map((team) => (
-                <div key={team.team} className="lineup-team">
-                  <div className="lineup-header">
-                    {team.logo && <img src={team.logo} width={22} height={22} />}
-                    <strong>{team.team}</strong>
-                    {team.formation && (
-                      <span className="formation">{team.formation}</span>
+                  <div key={team.team} className="lineup-team">
+                    <div className="lineup-header">
+                      {team.logo && <img src={team.logo} width={22} height={22} />}
+                      <strong>{team.team}</strong>
+                      {team.formation && <span className="formation">{team.formation}</span>}
+                    </div>
+
+                    <div className="lineup-section-label">Avaus</div>
+                    {sortByPos(team.startXI).map((p) => (
+                      <PlayerRow key={p.name} player={p} />
+                    ))}
+
+                    {team.substitutes?.length > 0 && (
+                      <>
+                        <div className="lineup-section-label">Vaihtopenkki</div>
+                        {team.substitutes.map((p) => (
+                          <PlayerRow key={p.name} player={p} />
+                        ))}
+                      </>
                     )}
                   </div>
-
-                  <div>Avaus</div>
-                  {sortByPos(team.startXI).map((p) => (
-                    <PlayerRow key={p.name} player={p} />
-                  ))}
-
-                  {team.substitutes?.length > 0 && (
-                    <>
-                      <div>Vaihtopenkki</div>
-                      {team.substitutes.map((p) => (
-                        <PlayerRow key={p.name} player={p} />
-                      ))}
-                    </>
-                  )}
-                </div>
               ))}
             </div>
           )}
