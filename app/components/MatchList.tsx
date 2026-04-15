@@ -42,7 +42,14 @@ function isToday(dateStr: string) {
 }
 
 function isPast(dateStr: string) {
-  return new Date(dateStr).getTime() < Date.now();
+  const d = new Date(dateStr);
+  const now = new Date();
+
+  // Nollataan kellonajat
+  d.setHours(0, 0, 0, 0);
+  now.setHours(0, 0, 0, 0);
+
+  return d.getTime() < now.getTime();
 }
 
 export default function MatchList({ fixtures, broadcasterMap, scorersMap }: Props) {
